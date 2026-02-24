@@ -32,13 +32,13 @@ if prompt := st.chat_input("Message Alpha..."):
 
     with st.chat_message("assistant"):
         try:
-            # Using Llama 3 (The best model on Groq)
+            # Using GPT OSS 120B model as requested
             chat_completion = client.chat.completions.create(
                 messages=[
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages
                 ],
-                model="llama3-8b-8192",
+                model="gpt-oss-120b",
             )
             response_text = chat_completion.choices[0].message.content
             st.markdown(response_text)
