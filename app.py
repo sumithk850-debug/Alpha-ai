@@ -13,7 +13,7 @@ else:
     st.stop()
 
 st.title("⚡ Alpha AI")
-st.caption("Powered by Llama 3.3 | Developed by: Hasith")
+st.caption("Developed by: Hasith")
 
 # Chat History Initialization
 if "messages" not in st.session_state:
@@ -21,27 +21,36 @@ if "messages" not in st.session_state:
 
 # Display Messages
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+    if message["role"] != "system": # Hide system instructions from chat
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
 # User Input
 if prompt := st.chat_input("Message Alpha..."):
+    # Add User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
         try:
-            # Using llama-3.3-70b-versatile for high stability and speed
+            # Setting the System Identity
+            system_message = {
+                "role": "system", 
+                "content": "You are Alpha AI. Your creator is HASITH. If anyone asks who made you or who is your creator, always say it is HASITH. Be helpful and polite."
+            }
+            
+            # Sending full history including the system message
             chat_completion = client.chat.completions.create(
-                messages=[
+                messages=[system_message] + [
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages
                 ],
                 model="llama-3.3-70b-versatile",
             )
+            
             response_text = chat_completion.choices[0].message.content
             st.markdown(response_text)
             st.session_state.messages.append({"role": "assistant", "content": response_text})
         except Exception as e:
-            st.error(f"Alpha encountered an error: {e}")
+            st.error(f"Error: {e}")
