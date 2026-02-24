@@ -9,11 +9,11 @@ if "GROQ_API_KEY" in st.secrets:
     api_key = st.secrets["GROQ_API_KEY"].strip()
     client = Groq(api_key=api_key)
 else:
-    st.error("GROQ_API_KEY missing in Streamlit Secrets.")
+    st.error("GROQ_API_KEY missing in Secrets.")
     st.stop()
 
 st.title("⚡ Alpha AI")
-st.caption("Developed by: Hasith")
+st.caption("Powered by Llama 3.3 | Developed by: Hasith")
 
 # Chat History Initialization
 if "messages" not in st.session_state:
@@ -32,13 +32,13 @@ if prompt := st.chat_input("Message Alpha..."):
 
     with st.chat_message("assistant"):
         try:
-            # Using GPT OSS 120B model as requested
+            # Using llama-3.3-70b-versatile for high stability and speed
             chat_completion = client.chat.completions.create(
                 messages=[
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state.messages
                 ],
-                model="gpt-oss-120b",
+                model="llama-3.3-70b-versatile",
             )
             response_text = chat_completion.choices[0].message.content
             st.markdown(response_text)
