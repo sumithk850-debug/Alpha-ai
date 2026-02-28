@@ -5,9 +5,9 @@ import sys
 from io import StringIO
 
 # 1. Page Configuration
-st.set_page_config(page_title="Alpha AI ⚡ Dev", page_icon="⚡", layout="centered")
+st.set_page_config(page_title="Alpha AI ⚡ Pro", page_icon="⚡", layout="centered")
 
-# 2. Custom CSS for Clean UI
+# 2. Custom CSS
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -32,13 +32,12 @@ st.markdown("""
         margin-bottom: 20px;
     }
     .stChatMessage { background-color: transparent !important; border: none !important; }
-    .code-box { background-color: #1e1e1e; padding: 10px; border-radius: 10px; border-left: 5px solid #FFD700; }
     </style>
     """, unsafe_allow_html=True)
 
 # 3. Branding Header
 st.markdown('<h1 class="hasith-header">Alpha AI <span class="hasith-header-lightning">⚡</span></h1>', unsafe_allow_html=True)
-st.markdown('<p class="hasith-subheader">Multi-Language Pro & Code Runner | Created by Hasith</p>', unsafe_allow_html=True)
+st.markdown('<p class="hasith-subheader">Created by Hasith | Big Brother & Expert Logic</p>', unsafe_allow_html=True)
 st.write("---")
 
 # 4. Initialize Memory
@@ -54,13 +53,17 @@ except:
 
 # 6. Sidebar
 with st.sidebar:
-    st.title("⚙️ Alpha Settings")
-    ai_mode = st.radio("Mode:", ["Normal (70B)", "Pro (Vision)"], index=0)
-    st.write("---")
+    st.title("⚙️ Control Panel")
+    ai_mode = st.radio("Intelligence Mode:", ["Normal (Big Brother)", "Pro (Expert Vision)"], index=0)
     
-    # Python Code Runner Sidebar Tool
-    st.subheader("⚡ Python Interpreter")
-    user_code = st.text_area("Write Python code here:", height=150, placeholder="print('Hello Hasith!')")
+    st.write("---")
+    st.subheader("🤖 AI Tuning")
+    temp_val = st.slider("Creativity (Temperature):", min_value=0.0, max_value=1.0, value=0.7, step=0.1)
+    max_toks = st.slider("Response Length (Tokens):", min_value=128, max_value=4096, value=1024, step=128)
+    
+    st.write("---")
+    st.subheader("⚡ Code Runner")
+    user_code = st.text_area("Write Python code:", height=100, placeholder="print('Hello!')")
     if st.button("Run Code"):
         old_stdout = sys.stdout
         redirected_output = sys.stdout = StringIO()
@@ -73,8 +76,8 @@ with st.sidebar:
             st.error(f"Error: {e}")
     
     st.write("---")
-    uploaded_file = st.file_uploader("📸 Vision Upload", type=["jpg", "jpeg", "png"]) if ai_mode == "Pro (Vision)" else None
-    if st.button("🗑️ Clear Chat"):
+    uploaded_file = st.file_uploader("📸 Vision Upload", type=["jpg", "jpeg", "png"]) if "Pro" in ai_mode else None
+    if st.button("🗑️ Clear Chat History", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
@@ -88,23 +91,35 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # 9. Main AI Logic
-if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
+if prompt := st.chat_input(f"Message Alpha..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Alpha is thinking..."):
+        spinner_text = "Alpha's Ultra Thinking..." if "Pro" in ai_mode else "Alpha is thinking..."
+        
+        with st.spinner(spinner_text):
             
-            # --- FEATURE 5: Polyglot Support Prompt ---
-            system_prompt = (
-                "You are Alpha AI ⚡, a professional multi-language assistant created by Hasith. "
-                "CRITICAL: Always respond in the SAME LANGUAGE as the user's last message. "
-                "If user speaks Sinhala, respond in grammatically perfect Sinhala. "
-                "If English, respond in professional English. Do not mix languages unless requested."
-            )
+            # --- FEATURE: Dynamic Persona Logic ---
+            if "Pro" in ai_mode:
+                # Expert Persona: Detailed, Technical, Scientific
+                system_prompt = (
+                    "You are Alpha AI ⚡ (Pro Mode), an elite expert and scientist created by Hasith. "
+                    "Your mission is to provide extremely detailed, deep, and comprehensive answers. "
+                    "Use technical terms, structured data, and go deep into the logic. "
+                    "Always respond in the language used by the user."
+                )
+            else:
+                # Big Brother Persona: Simple, Kind, Brief
+                system_prompt = (
+                    "You are Alpha AI ⚡ (Normal Mode), acting as Hasith's wise big brother. "
+                    "Provide very simple, easy-to-understand, and friendly answers. "
+                    "Keep it brief and practical, like a brother giving advice. "
+                    "Always respond in the language used by the user."
+                )
 
-            if ai_mode == "Pro (Vision)" and uploaded_file:
+            if "Pro" in ai_mode and uploaded_file:
                 model_name = "llama-3.2-11b-vision-instant"
                 base64_image = encode_image(uploaded_file)
                 messages_payload = [{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
@@ -113,7 +128,12 @@ if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
                 messages_payload = [{"role": "system", "content": system_prompt}] + st.session_state.messages
 
             try:
-                completion = client.chat.completions.create(messages=messages_payload, model=model_name, temperature=0.5)
+                completion = client.chat.completions.create(
+                    messages=messages_payload, 
+                    model=model_name, 
+                    temperature=temp_val,
+                    max_tokens=max_toks
+                )
                 response = completion.choices[0].message.content
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
