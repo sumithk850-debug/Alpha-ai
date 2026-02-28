@@ -5,7 +5,7 @@ import base64
 # 1. Page Configuration
 st.set_page_config(page_title="Alpha AI ⚡ Pro", page_icon="⚡", layout="centered")
 
-# 2. Custom CSS for Premium UI
+# 2. Custom CSS for UI (Removed the box border from chat)
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -30,7 +30,11 @@ st.markdown("""
         margin-top: 0px;
         margin-bottom: 20px;
     }
-    .stChatMessage { border-radius: 15px; border: 1px solid #30363d; margin-bottom: 10px; }
+    /* Removed box styling to make it look natural */
+    .stChatMessage { 
+        background-color: transparent !important; 
+        border: none !important; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -75,21 +79,24 @@ with st.sidebar:
 def encode_image(image_file):
     return base64.b64encode(image_file.read()).decode('utf-8')
 
-# 8. Display Chat
+# 8. Display Chat History (Clean Style)
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # 9. Main AI Logic
 if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
+    # Show User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Assistant Response with "Thinking" Spinner
     with st.chat_message("assistant"):
-        with st.spinner("Processing..."):
+        # 🎯 This is the spinner Hasith requested
+        with st.spinner("Alpha is thinking..."):
             
-            # CASE 1: Vision Mode (Llama 3.2 11B - The most stable vision model)
+            # Logic to select model
             if ai_mode == "Pro (Vision)" and uploaded_file:
                 model_name = "llama-3.2-11b-vision-instant"
                 base64_image = encode_image(uploaded_file)
@@ -100,12 +107,10 @@ if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 }]
-            
-            # CASE 2: Text Mode (Llama 3.3 70B - The high intelligence model you like)
             else:
                 model_name = "llama-3.3-70b-versatile"
                 messages_payload = [
-                    {"role": "system", "content": "You are Alpha AI ⚡, a super-intelligent assistant created by Hasith. Use Llama 3.3 70B intelligence."}
+                    {"role": "system", "content": "You are Alpha AI, a super-intelligent assistant created by Hasith."}
                 ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
             try:
@@ -118,4 +123,4 @@ if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:
-                st.error(f"API Error: {e}")
+                st.error(f"Error: {e}")
