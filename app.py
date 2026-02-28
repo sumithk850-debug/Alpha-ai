@@ -34,7 +34,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Beautiful Header
+# 3. Header Section
 st.markdown('<h1 class="hasith-header">Alpha AI <span class="hasith-header-lightning">⚡</span></h1>', unsafe_allow_html=True)
 st.markdown('<p class="hasith-subheader">Created by Hasith</p>', unsafe_allow_html=True)
 st.write("---")
@@ -50,28 +50,21 @@ except:
     st.error("Missing GROQ_API_KEY in Streamlit Secrets!")
     st.stop()
 
-# 6. Sidebar with Model Selector (Normal, Thinking, Pro)
+# 6. Sidebar with Model Selector
 with st.sidebar:
     st.title("⚙️ Alpha Settings")
-    
-    # 🎯 මෙතන තමයි ඔයා ඉල්ලපු Option තුන තියෙන්නේ
     ai_mode = st.radio(
         "Select AI Mode:",
         ["Normal", "Thinking", "Pro"],
-        index=0,
-        help="Normal is fast, Thinking is for logic, Pro is high intelligence."
+        index=0
     )
-    
     st.write("---")
-    uploaded_file = st.file_uploader("📸 Upload image (Vision Mode)", type=["jpg", "jpeg", "png"])
-    
+    uploaded_file = st.file_uploader("📸 Upload image", type=["jpg", "jpeg", "png"])
     if st.button("🗑️ Clear Chat History", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
-    
-    st.info(f"Currently using: {ai_mode} Mode")
 
-# 7. Image Encoding Function
+# 7. Helper Function: Encode Image
 def encode_image(image_file):
     return base64.b64encode(image_file.read()).decode('utf-8')
 
@@ -89,15 +82,10 @@ if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
     with st.chat_message("assistant"):
         with st.spinner(f"Alpha is {ai_mode.lower()}..."):
             
-            # System Prompt
-            system_prompt = (
-                f"You are Alpha AI ⚡ in {ai_mode} mode. Created by Hasith. "
-                "Always be respectful to Master Hasith. Provide the best possible answer."
-            )
+            system_prompt = f"You are Alpha AI ⚡ in {ai_mode} mode. Created by Hasith."
 
-            # --- Logic to Select Model based on Mode ---
             if uploaded_file:
-                # Vision mode uses specific vision model
+                # UPDATED VISION MODEL
                 model_name = "llama-3.2-11b-vision-instant"
                 base64_image = encode_image(uploaded_file)
                 messages_payload = [{
@@ -108,24 +96,24 @@ if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
                     ]
                 }]
             else:
-                # Text mode logic
+                # --- UPDATED MODEL NAMES HERE ---
                 if ai_mode == "Thinking":
-                    model_name = "deepseek-r1-distill-llama-70b" # Powerful reasoning model
+                    # මෙතන මම අලුත්ම specdec මොඩල් එක දැම්මා
+                    model_name = "deepseek-r1-distill-llama-70b-specdec" 
                 elif ai_mode == "Pro":
-                    model_name = "llama-3.3-70b-versatile" # High intelligence model
+                    model_name = "llama-3.3-70b-versatile"
                 else:
-                    model_name = "llama-3.3-70b-versatile" # Standard fast model
+                    model_name = "llama-3.3-70b-versatile"
                 
                 messages_payload = [
                     {"role": "system", "content": system_prompt}
                 ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
 
-            # Execute API Request
             try:
                 chat_completion = client.chat.completions.create(
                     messages=messages_payload,
                     model=model_name,
-                    temperature=0.7 if ai_mode != "Thinking" else 0.6
+                    temperature=0.7
                 )
                 response = chat_completion.choices[0].message.content
                 st.markdown(response)
