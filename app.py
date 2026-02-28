@@ -1,11 +1,13 @@
 import streamlit as st
 from groq import Groq
 import base64
+import sys
+from io import StringIO
 
 # 1. Page Configuration
-st.set_page_config(page_title="Alpha AI ⚡ Pro", page_icon="⚡", layout="centered")
+st.set_page_config(page_title="Alpha AI ⚡ Dev", page_icon="⚡", layout="centered")
 
-# 2. Custom CSS for UI (Removed the box border from chat)
+# 2. Custom CSS for Clean UI
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -27,20 +29,16 @@ st.markdown("""
         font-family: 'Montserrat', sans-serif;
         font-size: 18px;
         color: #a0a0a0;
-        margin-top: 0px;
         margin-bottom: 20px;
     }
-    /* Removed box styling to make it look natural */
-    .stChatMessage { 
-        background-color: transparent !important; 
-        border: none !important; 
-    }
+    .stChatMessage { background-color: transparent !important; border: none !important; }
+    .code-box { background-color: #1e1e1e; padding: 10px; border-radius: 10px; border-left: 5px solid #FFD700; }
     </style>
     """, unsafe_allow_html=True)
 
 # 3. Branding Header
 st.markdown('<h1 class="hasith-header">Alpha AI <span class="hasith-header-lightning">⚡</span></h1>', unsafe_allow_html=True)
-st.markdown('<p class="hasith-subheader">Powered by Llama 3.3 70B | Created by Hasith</p>', unsafe_allow_html=True)
+st.markdown('<p class="hasith-subheader">Multi-Language Pro & Code Runner | Created by Hasith</p>', unsafe_allow_html=True)
 st.write("---")
 
 # 4. Initialize Memory
@@ -51,75 +49,72 @@ if "messages" not in st.session_state:
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Missing GROQ_API_KEY in Streamlit Secrets!")
+    st.error("Missing GROQ_API_KEY!")
     st.stop()
 
-# 6. Sidebar Controls
+# 6. Sidebar
 with st.sidebar:
     st.title("⚙️ Alpha Settings")
-    ai_mode = st.radio(
-        "Select Mode:",
-        ["Normal (70B)", "Pro (Vision)"],
-        index=0
-    )
+    ai_mode = st.radio("Mode:", ["Normal (70B)", "Pro (Vision)"], index=0)
     st.write("---")
     
-    uploaded_file = None
-    if ai_mode == "Pro (Vision)":
-        st.success("Vision Mode: Active 👁️")
-        uploaded_file = st.file_uploader("📸 Upload image", type=["jpg", "jpeg", "png"])
-    else:
-        st.info("Chat Mode: Active ⚡")
-
-    if st.button("🗑️ Clear Chat", use_container_width=True):
+    # Python Code Runner Sidebar Tool
+    st.subheader("⚡ Python Interpreter")
+    user_code = st.text_area("Write Python code here:", height=150, placeholder="print('Hello Hasith!')")
+    if st.button("Run Code"):
+        old_stdout = sys.stdout
+        redirected_output = sys.stdout = StringIO()
+        try:
+            exec(user_code)
+            sys.stdout = old_stdout
+            st.code(redirected_output.getvalue(), language="python")
+        except Exception as e:
+            sys.stdout = old_stdout
+            st.error(f"Error: {e}")
+    
+    st.write("---")
+    uploaded_file = st.file_uploader("📸 Vision Upload", type=["jpg", "jpeg", "png"]) if ai_mode == "Pro (Vision)" else None
+    if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.rerun()
 
-# 7. Image Encoding Function
+# 7. Image Encoding
 def encode_image(image_file):
     return base64.b64encode(image_file.read()).decode('utf-8')
 
-# 8. Display Chat History (Clean Style)
+# 8. Display History
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 # 9. Main AI Logic
 if prompt := st.chat_input(f"Message Alpha ({ai_mode})..."):
-    # Show User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Assistant Response with "Thinking" Spinner
     with st.chat_message("assistant"):
-        # 🎯 This is the spinner Hasith requested
         with st.spinner("Alpha is thinking..."):
             
-            # Logic to select model
+            # --- FEATURE 5: Polyglot Support Prompt ---
+            system_prompt = (
+                "You are Alpha AI ⚡, a professional multi-language assistant created by Hasith. "
+                "CRITICAL: Always respond in the SAME LANGUAGE as the user's last message. "
+                "If user speaks Sinhala, respond in grammatically perfect Sinhala. "
+                "If English, respond in professional English. Do not mix languages unless requested."
+            )
+
             if ai_mode == "Pro (Vision)" and uploaded_file:
                 model_name = "llama-3.2-11b-vision-instant"
                 base64_image = encode_image(uploaded_file)
-                messages_payload = [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"Hasith's request: {prompt}"},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                }]
+                messages_payload = [{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}]
             else:
                 model_name = "llama-3.3-70b-versatile"
-                messages_payload = [
-                    {"role": "system", "content": "You are Alpha AI, a super-intelligent assistant created by Hasith."}
-                ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages]
+                messages_payload = [{"role": "system", "content": system_prompt}] + st.session_state.messages
 
             try:
-                chat_completion = client.chat.completions.create(
-                    messages=messages_payload,
-                    model=model_name,
-                    temperature=0.7
-                )
-                response = chat_completion.choices[0].message.content
+                completion = client.chat.completions.create(messages=messages_payload, model=model_name, temperature=0.5)
+                response = completion.choices[0].message.content
                 st.markdown(response)
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:
