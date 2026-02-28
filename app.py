@@ -52,25 +52,16 @@ current_messages = st.session_state.all_chats[st.session_state.current_chat_id]
 
 def render_message(role, content):
     with st.chat_message(role):
-        # Look for the specific image pattern we defined
         image_match = re.search(r'!\[Image\]\((https://pollinations\.ai/p/.*?)\)', content)
         if image_match:
-            # Extract text parts
             parts = content.split('![Image](')
             text_before = parts[0].strip()
             if text_before:
                 st.markdown(text_before)
             
-            # Show the image
-            image_url = image_match.group(1)
+            image_url = image_match.group(1).split(')')[0]
             st.image(image_url, use_container_width=True)
             st.markdown(f"**🔗 Download/Link:** [Click Here]({image_url})")
-            
-            # Show text after image if any
-            if ')' in parts[1]:
-                text_after = parts[1].split(')', 1)[-1].strip()
-                if text_after:
-                    st.markdown(text_after)
         else:
             st.markdown(content)
 
@@ -83,7 +74,6 @@ except Exception:
     st.error("API Key missing.")
     st.stop()
 
-# --- Input Handling & Logic ---
 if prompt := st.chat_input("Message Alpha..."):
     current_messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -93,40 +83,28 @@ if prompt := st.chat_input("Message Alpha..."):
         with st.chat_message("assistant"):
             with st.spinner("Alpha is processing..."):
                 
-                # Check for confirmations to previous image requests
                 confirms = ['yes', 'ok', 'sure', 'do it', 'ඔව්', 'හා', 'හරි']
                 is_confirmation = st.session_state.last_image_request and any(c in prompt.lower() for c in confirms)
                 
-                # Check for direct image triggers
-                triggers = ['imagine', 'draw', 'generate', 'show image', 'පින්තූරයක්', 'අඳින්න']
+                triggers = ['imagine', 'draw', 'generate', 'show image', 'පින්තූරයක්', 'අඳින්න', 'picture']
                 is_direct_request = any(t in prompt.lower() for t in triggers)
 
                 if is_confirmation:
-                    # PROCEED TO GENERATE
                     description = st.session_state.last_image_request
                     st.session_state.last_image_request = None
-                    
                     sys_msg = (
-                        "You are Alpha, created by HASITH from Bandarawela. "
-                        "You HAVE the ability to imagine and show images. "
-                        "The user said YES. Now, generate an image based on: " + description + ". "
-                        "Format: ![Image](https://pollinations.ai/p/ENGLISH_PROMPT?width=1024&height=1024&seed=123). "
-                        "Respond in the user's language (Sinhala/English)."
+                        "You are Alpha. Your creator is HASITH. "
+                        "IMPORTANT: You MUST generate an image now because the user said YES. "
+                        "Format: ![Image](https://pollinations.ai/p/ENGLISH_PROMPT?width=1024&height=1024&seed=123)"
                     )
                 elif is_direct_request:
-                    # ASK PERMISSION FIRST
                     st.session_state.last_image_request = prompt
                     response_text = "Master Hasith, I can imagine this for you. Shall I proceed? (Yes/No)"
                     st.markdown(response_text)
                     current_messages.append({"role": "assistant", "content": response_text})
                     st.stop()
                 else:
-                    # NORMAL CHAT
-                    sys_msg = (
-                        "You are Alpha, a bilingual AI created by HASITH from Bandarawela. "
-                        "You can speak perfect Sinhala and English. "
-                        "Be professional and very respectful to Hasith."
-                    )
+                    sys_msg = "You are Alpha AI, created by HASITH. Be helpful and polite in English or Sinhala."
 
                 if not is_direct_request or is_confirmation:
                     chat_completion = client.chat.completions.create(
@@ -136,7 +114,8 @@ if prompt := st.chat_input("Message Alpha..."):
                     )
                     res = chat_completion.choices[0].message.content
                     render_message("assistant", res)
-                    current_messages.append({"role": "assistant", "content": res)
+                    current_messages.append({"role": "assistant", "content": res})
 
     except Exception as e:
         st.error(f"Error: {e}")
+            
