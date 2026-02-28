@@ -3,110 +3,84 @@ from groq import Groq
 import uuid
 import re
 
-# Page Config
+# 1. Page Config
 st.set_page_config(page_title="Alpha AI", page_icon="⚡", layout="centered")
 
-# Initialize Sessions
-if "all_chats" not in st.session_state:
-    st.session_state.all_chats = {}
-if "current_chat_id" not in st.session_state:
-    st.session_state.current_chat_id = None
-if "last_image_request" not in st.session_state:
-    st.session_state.last_image_request = None
+# 2. Initialize Session
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "last_prompt" not in st.session_state:
+    st.session_state.last_prompt = None
 
-def start_new_chat():
-    new_id = str(uuid.uuid4())
-    st.session_state.all_chats[new_id] = []
-    st.session_state.current_chat_id = new_id
-    st.session_state.last_image_request = None
-
-if st.session_state.current_chat_id is None:
-    start_new_chat()
-
-# Sidebar
+# 3. Sidebar
 with st.sidebar:
     st.title("🤖 Alpha AI")
-    st.write("**Creator:** Hasith")
-    if st.button("➕ New Chat", use_container_width=True):
-        start_new_chat()
+    st.write("Creator: Hasith")
+    if st.button("➕ New Chat"):
+        st.session_state.messages = []
+        st.session_state.last_prompt = None
         st.rerun()
-    st.markdown("---")
-    for chat_id, messages in st.session_state.all_chats.items():
-        label = f"💬 {messages[0]['content'][:20]}..." if messages else "💬 New Chat"
-        if st.button(label, key=chat_id, use_container_width=True):
-            st.session_state.current_chat_id = chat_id
-            st.rerun()
 
-# Main UI
+# 4. Main UI
 st.title("💥 Alpha AI")
-st.info("Created by Hasith | Powered by Groq & Pollinations")
 
-current_messages = st.session_state.all_chats[st.session_state.current_chat_id]
+# 5. Display Chat History
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+        if "image_url" in msg:
+            st.image(msg["image_url"], use_container_width=True)
+            st.caption(f"🔗 Link: {msg['image_url']}")
 
-# Improved Rendering Function
-def display_msg(role, content):
-    with st.chat_message(role):
-        # Image Detection
-        image_match = re.search(r'!\[Image\]\((https://pollinations\.ai/p/.*?)\)', content)
-        if image_match:
-            text_before = content.split('![Image]')[0].strip()
-            if text_before: st.markdown(text_before)
-            
-            img_url = image_match.group(1).split(')')[0]
-            st.image(img_url, use_container_width=True)
-            st.markdown(f"**🔗 Link:** [Open Image]({img_url})")
-        else:
-            st.markdown(content)
-
-# Display Chat History
-for msg in current_messages:
-    display_msg(msg["role"], msg["content"])
-
-# Groq Client
+# 6. Groq Setup
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("API Key Error")
+    st.error("Please add GROQ_API_KEY to Streamlit Secrets!")
     st.stop()
 
-# Input
+# 7. User Input Logic
 if prompt := st.chat_input("Message Alpha..."):
-    current_messages.append({"role": "user", "content": prompt})
+    # Add user message to history
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    try:
-        # Check for image triggers/confirmations
-        confirms = ['yes', 'ok', 'sure', 'do it', 'ඔව්', 'හා', 'හරි']
-        triggers = ['imagine', 'draw', 'generate', 'show image', 'පින්තූරයක්', 'අඳින්න']
+    # Check for keywords
+    img_triggers = ['imagine', 'draw', 'generate', 'අඳින්න', 'පින්තූරයක්']
+    confirms = ['yes', 'ok', 'ඔව්', 'හා', 'හරි']
+
+    with st.chat_message("assistant"):
+        # CASE A: User says YES to a previous request
+        if st.session_state.last_prompt and any(c in prompt.lower() for c in confirms):
+            with st.spinner("Generating High-Quality Image..."):
+                # Clean the prompt for the URL
+                clean_prompt = re.sub(r'[^a-zA-Z0-9]', ' ', st.session_state.last_prompt)
+                image_url = f"https://pollinations.ai/p/{clean_prompt.replace(' ', '%20')}?width=1024&height=1024&model=turbo&nologo=true"
+                
+                response_text = f"Master Hasith, here is what I imagined for: **{st.session_state.last_prompt}**"
+                st.markdown(response_text)
+                st.image(image_url, use_container_width=True)
+                st.caption(f"🔗 Download Link: {image_url}")
+                
+                # Save to history
+                st.session_state.messages.append({"role": "assistant", "content": response_text, "image_url": image_url})
+                st.session_state.last_prompt = None # Reset
         
-        is_confirm = st.session_state.last_image_request and any(c in prompt.lower() for c in confirms)
-        is_request = any(t in prompt.lower() for t in triggers)
-
-        with st.spinner("Alpha is thinking..."):
-            if is_confirm:
-                desc = st.session_state.last_image_request
-                st.session_state.last_image_request = None
-                sys_msg = f"User said YES. Generate an image of: {desc}. Use format: ![Image](https://pollinations.ai/p/PROMPT?width=1024&height=1024&seed=123)"
-            elif is_request:
-                st.session_state.last_image_request = prompt
-                res_text = "Master Hasith, I can imagine this for you. Shall I proceed? (Yes/No)"
-                display_msg("assistant", res_text)
-                current_messages.append({"role": "assistant", "content": res_text})
-                st.stop()
-            else:
-                sys_msg = "You are Alpha AI created by HASITH. Be polite and helpful in English/Sinhala."
-
-            # Generate Response
+        # CASE B: User asks for a new image
+        elif any(t in prompt.lower() for t in img_triggers):
+            st.session_state.last_prompt = prompt
+            ask_text = "Master Hasith, I can imagine this for you. Shall I proceed? (Yes/No)"
+            st.markdown(ask_text)
+            st.session_state.messages.append({"role": "assistant", "content": ask_text})
+        
+        # CASE C: Normal Chat
+        else:
             chat_completion = client.chat.completions.create(
-                messages=[{"role": "system", "content": sys_msg}] + 
-                         [{"role": m["role"], "content": m["content"]} for m in current_messages],
+                messages=[{"role": "system", "content": "You are Alpha AI by Hasith. Speak English/Sinhala."}] + 
+                         [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages],
                 model="llama-3.3-70b-versatile",
             )
-            response = chat_completion.choices[0].message.content
-            display_msg("assistant", response)
-            current_messages.append({"role": "assistant", "content": response})
-
-    except Exception as e:
-        st.error(f"Error: {e}")
-         
+            res = chat_completion.choices[0].message.content
+            st.markdown(res)
+            st.session_state.messages.append({"role": "assistant", "content": res})
