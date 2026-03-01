@@ -1,6 +1,5 @@
 import streamlit as st
 from groq import Groq
-import base64
 import sys
 from io import StringIO
 
@@ -17,13 +16,13 @@ st.set_page_config(
     }
 )
 
-# Google Search Console Verification - ඔයාගේ කේතය මෙන්න
-st.markdown('<meta name="google-site-verification" content="4b5590848e88e155" />', unsafe_allow_html=True)
-# General Meta Description
-st.markdown('<meta name="description" content="Alpha AI by Hasith: Friendly assistant with built-in Python runner.">', unsafe_allow_html=True)
+# ✅ නිවැරදි කරන ලද Google Search Console Verification කේතය
+st.markdown('<meta name="google-site-verification" content="ItvqSJ9OBYMArxGI-WkmQ4yccISMfVQ1gYYOKiUYsBw" />', unsafe_allow_html=True)
+# General Meta Description for SEO
+st.markdown('<meta name="description" content="Alpha AI by Hasith: Your friendly assistant with built-in Python runner. High intelligence and zero repetition.">', unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. Custom CSS Styling
+# 2. Custom CSS Styling (Dark Theme)
 # ---------------------------------------------------------
 st.markdown("""
     <style>
@@ -51,52 +50,55 @@ st.markdown("""
         border: 1px solid #30363d;
         border-radius: 12px;
         width: 100%;
+        transition: 0.3s;
     }
+    div.stButton > button:hover { border-color: #FFD700; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Initialization
+# 3. Session State Initialization
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# 4. API Client
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Missing GROQ_API_KEY in Secrets!")
+    st.error("Missing GROQ_API_KEY! Please add it to Streamlit Secrets.")
     st.stop()
 
-# 4. Sidebar - Controls & Python Lab
+# 5. Sidebar - Controls & Python Lab
 with st.sidebar:
     st.title("⚙️ System Control")
     ai_mode = st.radio("Intelligence Level:", ["Normal", "Pro (Deep Expert)"], index=1)
     
     st.write("---")
     st.subheader("🛠️ Anti-Repetition Tuning")
-    # මෙහි අගයන් 1.2 ට වඩා වැඩි කර ඇත (එකම දේ කීම වැළැක්වීමට)
+    # ✅ එකම දේ නැවත කීම පාලනය කරන සැකසුම් (Penalties)
     temp_val = st.slider("Logic Precision:", 0.0, 1.0, 0.4)
-    presence_penalty = st.slider("Diversity (Presence):", 0.0, 2.0, 1.3) 
-    frequency_penalty = st.slider("Uniqueness (Frequency):", 0.0, 2.0, 1.3)
+    presence_penalty = st.slider("Diversity (Presence):", 0.0, 2.0, 1.2) 
+    frequency_penalty = st.slider("Uniqueness (Frequency):", 0.0, 2.0, 1.2)
     
     st.write("---")
     st.subheader("🐍 Python Interpreter")
-    py_code = st.text_area("Write Python code here:", height=120)
+    py_code = st.text_area("Write Python code here:", height=120, placeholder="print('Hello Alpha')")
     if st.button("🚀 Execute Python"):
         buffer = StringIO()
         sys.stdout = buffer
         try:
             exec(py_code)
-            st.code(buffer.getvalue() if buffer.getvalue() else "Success.", language="text")
+            st.code(buffer.getvalue() if buffer.getvalue() else "Executed successfully (No output).", language="text")
         except Exception as e:
             st.error(f"Error: {e}")
         finally:
             sys.stdout = sys.__stdout__
 
     st.write("---")
-    if st.button("🗑️ Wipe Memory"):
+    if st.button("🗑️ Wipe System Memory", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-# 5. Header
+# 6. Header
 st.markdown('<h1 class="hasith-header">Alpha AI <span style="color:#FFD700;">⚡</span></h1>', unsafe_allow_html=True)
 st.markdown('<p class="hasith-tagline">Your Friendly AI Assistant and Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
 
@@ -108,12 +110,12 @@ if not st.session_state.messages:
     with c3: st.button("✅ Refine")
 st.write("---")
 
-# 6. Chat Rendering
+# 7. Chat History Rendering
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 7. AI Logic
+# 8. Main AI Logic
 user_input = st.chat_input("Message Alpha...")
 
 if user_input:
@@ -125,13 +127,14 @@ if user_input:
         spinner_text = "🧠 Alpha's Ultra Thinking..." if "Pro" in ai_mode else "Normalis Thinking... ⚡"
         with st.spinner(spinner_text):
             try:
-                # Llama 3.3 70B - Ultimate Intelligence
+                # 🎯 Llama 3.3 70B - High Performance Model
                 stream = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[{"role": "system", "content": "You are Alpha AI by Hasith. Friendly, diverse, and accurate. NEVER repeat phrases."}] + st.session_state.messages[-15:],
+                    messages=[{"role": "system", "content": "You are Alpha AI by Hasith. Friendly and intelligent. Do not repeat your own sentences. Use fresh words."}] + st.session_state.messages[-15:],
                     temperature=temp_val,
                     presence_penalty=presence_penalty,
                     frequency_penalty=frequency_penalty,
+                    max_tokens=4000,
                     stream=True
                 )
                 
@@ -145,5 +148,5 @@ if user_input:
                 res_box.markdown(full_res)
                 st.session_state.messages.append({"role": "assistant", "content": full_res})
                 st.rerun()
-            except:
-                st.error("Connection lost.")
+            except Exception as e:
+                st.error("Connection glitch. Try clearing memory.")
