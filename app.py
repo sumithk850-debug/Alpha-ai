@@ -3,162 +3,210 @@ from groq import Groq
 import sys
 from io import StringIO
 
-# ---------------------------------------------------------
-# 1. Page Configuration & Analytics Tag
-# ---------------------------------------------------------
+# -------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------
 st.set_page_config(
-    page_title="Alpha AI: Friendly Assistant & Python Runner",
+    page_title="Alpha AI ⚡ | Friendly AI Assistant",
     page_icon="⚡",
     layout="centered"
 )
 
-# ✅ Google Analytics Tag (As you provided)
+# -------------------------------------------------
+# FUTURISTIC CSS
+# -------------------------------------------------
 st.markdown("""
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-7YH49L26HC"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-7YH49L26HC');
-</script>
+<style>
+
+/* Background */
+.stApp {
+    background: radial-gradient(circle at top, #0f2027, #0b0c10 60%);
+    color: white;
+}
+
+/* Header */
+.alpha-title {
+    font-size: 60px;
+    font-weight: 800;
+    text-align: center;
+    background: linear-gradient(90deg,#ffffff,#00f5ff,#FFD700);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.alpha-tagline {
+    text-align: center;
+    color: #b0b0b0;
+    font-size: 18px;
+    margin-bottom: 40px;
+}
+
+/* Glass Cards */
+.glass-card {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(15px);
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: 0.3s;
+    text-align:center;
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    border-color: #00f5ff;
+    box-shadow: 0 0 20px rgba(0,245,255,0.3);
+}
+
+/* Buttons */
+div.stButton > button {
+    background: linear-gradient(90deg,#00f5ff,#FFD700);
+    color: black;
+    border-radius: 15px;
+    font-weight: 600;
+    border: none;
+    transition: 0.3s;
+}
+
+div.stButton > button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px #00f5ff;
+}
+
+/* Chat input */
+[data-testid="stChatInput"] {
+    border-radius: 20px;
+    background: rgba(255,255,255,0.08);
+}
+
+</style>
 """, unsafe_allow_html=True)
 
-# ✅ Google Search Console Verification Tag
-st.markdown('<meta name="google-site-verification" content="ItvqSJ9OBYMArxGI-WkmQ4yccISMfVQ1gYYOKiUYsBw" />', unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# 2. Professional UI Styling (Dark Theme)
-# ---------------------------------------------------------
-st.markdown("""
-    <style>
-    .main { background-color: #0e1117; }
-    .hasith-header {
-        font-family: 'Montserrat', sans-serif;
-        color: #ffffff;
-        text-align: center;
-        font-weight: 700;
-        font-size: 45px;
-        margin-bottom: 0px;
-    }
-    .hasith-tagline {
-        font-family: 'Montserrat', sans-serif;
-        color: #a0a0a0;
-        text-align: center;
-        font-size: 15px;
-        margin-top: -10px;
-        margin-bottom: 25px;
-    }
-    div.stButton > button {
-        background-color: #1e1e1e;
-        color: #FFD700;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        width: 100%;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        border-color: #FFD700;
-        background-color: #252525;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-# 3. Initialization
+# -------------------------------------------------
+# GROQ CLIENT
+# -------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# 4. API Setup
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except Exception:
-    st.error("Missing GROQ_API_KEY in Streamlit Secrets.")
+except:
+    st.error("Add GROQ_API_KEY to Streamlit Secrets.")
     st.stop()
 
-# ---------------------------------------------------------
-# 5. Sidebar - Intelligence Tuning & Python Lab
-# ---------------------------------------------------------
+# -------------------------------------------------
+# SIDEBAR CONTROL PANEL
+# -------------------------------------------------
 with st.sidebar:
     st.title("⚙️ System Control")
+
     ai_mode = st.radio("Intelligence Level:", ["Normal", "Pro (Deep Expert)"], index=1)
-    
-    st.write("---")
+
     st.subheader("🛠️ Intelligence Tuning")
-    # ✅ Tuning Sliders
-    temp_val = st.slider("Logic Precision (Temp):", 0.0, 1.0, 0.4)
-    presence_pen = st.slider("Diversity Penalty:", 0.0, 2.0, 1.3)
-    freq_pen = st.slider("Repetition Penalty:", 0.0, 2.0, 1.3)
-    
+    temp_val = st.slider("Logic Precision:", 0.0, 1.0, 0.3)
+    presence_penalty = st.slider("Creativity Penalty:", 0.0, 2.0, 0.8)
+    frequency_penalty = st.slider("Repetition Penalty:", 0.0, 2.0, 0.8)
+
     st.write("---")
     st.subheader("🐍 Python Interpreter")
+
     py_code = st.text_area("Write Python code:", height=120)
-    if st.button("🚀 Run Python"):
+
+    if st.button("🚀 Execute Python"):
         buffer = StringIO()
         sys.stdout = buffer
         try:
             exec(py_code)
-            st.code(buffer.getvalue() if buffer.getvalue() else "Success.", language="text")
+            st.code(buffer.getvalue() if buffer.getvalue() else "Executed successfully.")
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(e)
         finally:
             sys.stdout = sys.__stdout__
 
-    if st.button("🗑️ Wipe All Memory", use_container_width=True):
+    if st.button("🗑️ Clear Memory"):
         st.session_state.messages = []
         st.rerun()
 
-# ---------------------------------------------------------
-# 6. Header & Quick Action Buttons
-# ---------------------------------------------------------
-st.markdown('<h1 class="hasith-header">Alpha AI <span style="color:#FFD700;">⚡</span></h1>', unsafe_allow_html=True)
-st.markdown('<p class="hasith-tagline">Friendly AI Assistant & Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
+# -------------------------------------------------
+# HERO SECTION
+# -------------------------------------------------
+st.markdown('<div class="alpha-title">Alpha AI ⚡</div>', unsafe_allow_html=True)
+st.markdown('<div class="alpha-tagline">Your Friendly AI Assistant & Python Code Runner | Developed by Hasith</div>', unsafe_allow_html=True)
 
-# ✅ Quick Actions (Summarize, Deep Dive, Refine)
+# -------------------------------------------------
+# QUICK ACTIONS
+# -------------------------------------------------
+quick_prompt = None
+
 if not st.session_state.messages:
-    st.write("Quick Actions:")
-    col1, col2, col3 = st.columns(3)
-    
-    if col1.button("📝 Summarize"):
-        st.session_state.messages.append({"role": "user", "content": "Please summarize our discussion."})
-        st.rerun()
-    if col2.button("💡 Deep Dive"):
-        st.session_state.messages.append({"role": "user", "content": "Can you explain this topic in extreme detail?"})
-        st.rerun()
-    if col3.button("✅ Refine"):
-        st.session_state.messages.append({"role": "user", "content": "Improve and polish this text for me."})
-        st.rerun()
+
+    st.markdown("## 🚀 Quick Actions")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.markdown('<div class="glass-card">📝 <b>Summarize</b><br>Get concise summary instantly.</div>', unsafe_allow_html=True)
+        if st.button("Run Summarizer"):
+            quick_prompt = "Provide a professional summary."
+
+    with c2:
+        st.markdown('<div class="glass-card">💡 <b>Deep Dive</b><br>Explore topic deeply.</div>', unsafe_allow_html=True)
+        if st.button("Run Deep Dive"):
+            quick_prompt = "Explain this topic scientifically."
+
+    with c3:
+        st.markdown('<div class="glass-card">✅ <b>Refine</b><br>Improve grammar & clarity.</div>', unsafe_allow_html=True)
+        if st.button("Run Refiner"):
+            quick_prompt = "Fix grammar and improve clarity."
+
+else:
+    st.success("🟢 Alpha AI Online")
 
 st.write("---")
 
-# 7. Chat History Render
+# -------------------------------------------------
+# CHAT DISPLAY
+# -------------------------------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ---------------------------------------------------------
-# 8. Main AI Engine
-# ---------------------------------------------------------
-user_input = st.chat_input("Message Alpha...")
+# -------------------------------------------------
+# CHAT INPUT
+# -------------------------------------------------
+user_input = st.chat_input("Ask Alpha anything...")
+final_input = quick_prompt if quick_prompt else user_input
 
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+if final_input:
+    st.session_state.messages.append({"role": "user", "content": final_input})
+
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(final_input)
 
     with st.chat_message("assistant"):
-        thinking_text = "🧠 Alpha's Ultra Thinking..." if "Pro" in ai_mode else "Thinking... ⚡"
-        with st.spinner(thinking_text):
+        with st.spinner("🧠 Alpha Thinking..."):
             try:
                 stream = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[{"role": "system", "content": "You are Alpha AI by Hasith. Friendly and intelligent. Use professional English."}] + st.session_state.messages[-15:],
+                    messages=[
+                        {"role": "system", "content": "You are Alpha AI by Hasith. Be intelligent, friendly and precise."}
+                    ] + st.session_state.messages[-20:],
                     temperature=temp_val,
-                    presence_penalty=presence_pen,
-                    frequency_penalty=freq_pen,
+                    presence_penalty=presence_penalty,
+                    frequency_penalty=frequency_penalty,
                     stream=True
                 )
-                
-                full_res = st.write_stream(stream)
+
+                res_area = st.empty()
+                full_res = ""
+
+                for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        full_res += chunk.choices[0].delta.content
+                        res_area.markdown(full_res + "▌")
+
+                res_area.markdown(full_res)
                 st.session_state.messages.append({"role": "assistant", "content": full_res})
-                st.rerun()
+
             except Exception:
-                st.error("Connection Error. Please check your API key.")
+                st.error("Connection error. Try again.")
