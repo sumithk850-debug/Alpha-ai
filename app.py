@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# ✅ ඔයා එවපු Google Analytics Tag එක මෙන්න මෙතනට දැම්මා
+# ✅
 st.markdown("""
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-7YH49L26HC"></script>
 <script>
