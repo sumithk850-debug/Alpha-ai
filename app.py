@@ -13,70 +13,96 @@ st.set_page_config(
 )
 
 # -------------------------------------------------
-# FUTURISTIC CSS
+# FUTURISTIC CSS + ANIMATED DIGITAL BRAIN
 # -------------------------------------------------
 st.markdown("""
 <style>
 
-/* Background */
+/* ===== BACKGROUND ===== */
 .stApp {
-    background: radial-gradient(circle at top, #0f2027, #0b0c10 60%);
+    background: radial-gradient(circle at top, #0c0f1a, #05060d 70%);
     color: white;
 }
 
-/* Header */
+/* ===== TITLE ===== */
 .alpha-title {
-    font-size: 60px;
-    font-weight: 800;
+    font-size: 65px;
+    font-weight: 900;
     text-align: center;
-    background: linear-gradient(90deg,#ffffff,#00f5ff,#FFD700);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: white;
+    margin-bottom: 10px;
 }
 
 .alpha-tagline {
     text-align: center;
-    color: #b0b0b0;
-    font-size: 18px;
-    margin-bottom: 40px;
+    font-size: 20px;
+    color: #cfcfcf;
+    margin-bottom: 30px;
 }
 
-/* Glass Cards */
+/* ===== DIGITAL BRAIN ===== */
+.brain {
+    width: 260px;
+    height: 260px;
+    margin: 30px auto;
+    border-radius: 50%;
+    background: radial-gradient(circle, #00f5ff, #0066ff, #001f3f);
+    box-shadow: 0 0 40px #00f5ff,
+                0 0 80px #0066ff,
+                0 0 120px #00f5ff;
+    animation: pulse 3s infinite alternate;
+}
+
+@keyframes pulse {
+    from {
+        transform: scale(1);
+        box-shadow: 0 0 40px #00f5ff,
+                    0 0 80px #0066ff;
+    }
+    to {
+        transform: scale(1.07);
+        box-shadow: 0 0 70px #00f5ff,
+                    0 0 140px #00ccff;
+    }
+}
+
+/* ===== GLASS CARDS ===== */
 .glass-card {
     background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(15px);
+    backdrop-filter: blur(12px);
     border-radius: 20px;
     padding: 20px;
     border: 1px solid rgba(255,255,255,0.1);
-    transition: 0.3s;
     text-align:center;
+    margin-bottom:15px;
 }
 
-.glass-card:hover {
-    transform: translateY(-5px);
-    border-color: #00f5ff;
-    box-shadow: 0 0 20px rgba(0,245,255,0.3);
-}
-
-/* Buttons */
-div.stButton > button {
-    background: linear-gradient(90deg,#00f5ff,#FFD700);
-    color: black;
+/* ===== CHAT VISIBILITY FIX ===== */
+[data-testid="stChatMessage"] {
+    background: rgba(255,255,255,0.06);
     border-radius: 15px;
-    font-weight: 600;
+    padding: 12px;
+    color: #ffffff !important;
+}
+
+/* ===== BUTTONS ===== */
+div.stButton > button {
+    background: linear-gradient(90deg,#00f5ff,#00ffcc);
+    color: black;
+    font-weight: 700;
+    border-radius: 20px;
     border: none;
-    transition: 0.3s;
 }
 
 div.stButton > button:hover {
+    box-shadow: 0 0 20px #00f5ff;
     transform: scale(1.05);
-    box-shadow: 0 0 15px #00f5ff;
 }
 
-/* Chat input */
+/* ===== CHAT INPUT ===== */
 [data-testid="stChatInput"] {
+    background: rgba(255,255,255,0.1);
     border-radius: 20px;
-    background: rgba(255,255,255,0.08);
 }
 
 </style>
@@ -91,39 +117,38 @@ if "messages" not in st.session_state:
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("Add GROQ_API_KEY to Streamlit Secrets.")
+    st.error("Add GROQ_API_KEY in Streamlit Secrets.")
     st.stop()
 
 # -------------------------------------------------
-# SIDEBAR CONTROL PANEL
+# SIDEBAR
 # -------------------------------------------------
 with st.sidebar:
     st.title("⚙️ System Control")
 
-    ai_mode = st.radio("Intelligence Level:", ["Normal", "Pro (Deep Expert)"], index=1)
+    ai_mode = st.radio("Mode:", ["Normal", "Pro"], index=1)
 
-    st.subheader("🛠️ Intelligence Tuning")
-    temp_val = st.slider("Logic Precision:", 0.0, 1.0, 0.3)
-    presence_penalty = st.slider("Creativity Penalty:", 0.0, 2.0, 0.8)
-    frequency_penalty = st.slider("Repetition Penalty:", 0.0, 2.0, 0.8)
+    temp_val = st.slider("Logic Precision", 0.0, 1.0, 0.3)
+    presence_penalty = st.slider("Creativity Penalty", 0.0, 2.0, 0.8)
+    frequency_penalty = st.slider("Repetition Penalty", 0.0, 2.0, 0.8)
 
     st.write("---")
-    st.subheader("🐍 Python Interpreter")
+    st.subheader("🐍 Python Lab")
 
-    py_code = st.text_area("Write Python code:", height=120)
+    py_code = st.text_area("Run Python Code:", height=120)
 
     if st.button("🚀 Execute Python"):
         buffer = StringIO()
         sys.stdout = buffer
         try:
             exec(py_code)
-            st.code(buffer.getvalue() if buffer.getvalue() else "Executed successfully.")
+            st.code(buffer.getvalue() if buffer.getvalue() else "Executed Successfully.")
         except Exception as e:
             st.error(e)
         finally:
             sys.stdout = sys.__stdout__
 
-    if st.button("🗑️ Clear Memory"):
+    if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.rerun()
 
@@ -131,7 +156,8 @@ with st.sidebar:
 # HERO SECTION
 # -------------------------------------------------
 st.markdown('<div class="alpha-title">Alpha AI ⚡</div>', unsafe_allow_html=True)
-st.markdown('<div class="alpha-tagline">Your Friendly AI Assistant & Python Code Runner | Developed by Hasith</div>', unsafe_allow_html=True)
+st.markdown('<div class="alpha-tagline">Your Friendly AI Assistant & Python Code Runner<br>Developed by Hasith</div>', unsafe_allow_html=True)
+st.markdown('<div class="brain"></div>', unsafe_allow_html=True)
 
 # -------------------------------------------------
 # QUICK ACTIONS
@@ -142,19 +168,19 @@ if not st.session_state.messages:
 
     st.markdown("## 🚀 Quick Actions")
 
-    c1, c2, c3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
-    with c1:
+    with col1:
         st.markdown('<div class="glass-card">📝 <b>Summarize</b><br>Get concise summary instantly.</div>', unsafe_allow_html=True)
         if st.button("Run Summarizer"):
             quick_prompt = "Provide a professional summary."
 
-    with c2:
-        st.markdown('<div class="glass-card">💡 <b>Deep Dive</b><br>Explore topic deeply.</div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown('<div class="glass-card">💡 <b>Deep Dive</b><br>Explore deeply with examples.</div>', unsafe_allow_html=True)
         if st.button("Run Deep Dive"):
-            quick_prompt = "Explain this topic scientifically."
+            quick_prompt = "Explain deeply with examples."
 
-    with c3:
+    with col3:
         st.markdown('<div class="glass-card">✅ <b>Refine</b><br>Improve grammar & clarity.</div>', unsafe_allow_html=True)
         if st.button("Run Refiner"):
             quick_prompt = "Fix grammar and improve clarity."
@@ -165,7 +191,7 @@ else:
 st.write("---")
 
 # -------------------------------------------------
-# CHAT DISPLAY
+# DISPLAY CHAT
 # -------------------------------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -209,4 +235,4 @@ if final_input:
                 st.session_state.messages.append({"role": "assistant", "content": full_res})
 
             except Exception:
-                st.error("Connection error. Try again.")
+                st.error("Connection Error. Try again.")
