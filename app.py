@@ -3,7 +3,9 @@ from groq import Groq
 import sys
 from io import StringIO
 
+# ---------------------------------------------------------
 # 1. Page Configuration & Analytics
+# ---------------------------------------------------------
 st.set_page_config(
     page_title="Alpha AI ⚡",
     page_icon="⚡",
@@ -22,7 +24,9 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# 2. Ultra-Digital Cyberpunk CSS
+# ---------------------------------------------------------
+# 2. Ultra-Digital Cyberpunk UI Styling
+# ---------------------------------------------------------
 st.markdown("""
     <style>
     .stApp {
@@ -45,13 +49,16 @@ st.markdown("""
         font-size: 18px;
         margin-bottom: 30px;
     }
-    /* Brain Image Neon Glow */
+    /* Image Neon Glow Effect */
     .brain-glow img {
         border-radius: 25px;
         box-shadow: 0 0 60px rgba(0, 191, 255, 0.4);
         border: 1px solid rgba(0, 191, 255, 0.2);
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
     }
-    /* Quick Action Card Style */
+    /* Action Card Styling */
     div.stButton > button {
         background: rgba(30, 41, 59, 0.5);
         border: 1px solid #1e293b;
@@ -76,7 +83,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Sidebar - Intelligence Tuning & Python Lab
+# ---------------------------------------------------------
+# 3. Sidebar - Tuning & Developer Tools
+# ---------------------------------------------------------
 with st.sidebar:
     st.title("⚙️ System Control")
     st.write("---")
@@ -89,9 +98,9 @@ with st.sidebar:
     
     st.write("---")
     
-    # Python Interpreter
+    # Python Lab
     st.subheader("🐍 Python Lab")
-    py_code = st.text_area("Write code here:", height=150)
+    py_code = st.text_area("Write Python code:", height=150)
     if st.button("🚀 Run Python Code", use_container_width=True):
         buffer = StringIO()
         sys.stdout = buffer
@@ -104,17 +113,22 @@ with st.sidebar:
             sys.stdout = sys.__stdout__
 
     st.write("---")
-    if st.button("🗑️ Wipe All Memory", use_container_width=True):
+    if st.button("🗑️ Wipe Chat Memory", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-# 4. Main UI Header
+# ---------------------------------------------------------
+# 4. Main UI Content
+# ---------------------------------------------------------
 st.markdown('<h1 class="main-title">Alpha AI ⚡</h1>', unsafe_allow_html=True)
 st.markdown('<p class="tagline">Your Friendly AI Assistant & Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
 
-# ✅ Central Digital Brain Image
+# ✅ පින්තූරය මෙතනින් පෙන්වයි (Local GitHub Image)
 st.markdown('<div class="brain-glow">', unsafe_allow_html=True)
-st.image("https://raw.githubusercontent.com/HasithAI/Alpha-AI-Resources/main/digital_brain.jpg", use_container_width=True)
+try:
+    st.image("digital_brain.jpg", use_container_width=True)
+except:
+    st.error("Error: Please upload 'digital_brain.jpg' to your GitHub repository.")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # 5. Quick Actions Section
@@ -123,7 +137,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("📝 Summarize\nGet a concise summary"):
-        st.session_state.messages.append({"role": "user", "content": "Please summarize our current topic."})
+        st.session_state.messages.append({"role": "user", "content": "Summarize this topic for me."})
         st.rerun()
 
 with col2:
@@ -138,7 +152,9 @@ with col3:
 
 st.write("---")
 
-# 6. Chat & AI Logic
+# ---------------------------------------------------------
+# 6. Chat Interface & AI Engine
+# ---------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -146,14 +162,14 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Groq Connection
+# API Client Connection
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("API Key missing in Secrets!")
+    st.error("GROQ_API_KEY missing in Secrets!")
     st.stop()
 
-user_input = st.chat_input("Message Alpha...")
+user_input = st.chat_input("Ask Alpha anything...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -161,10 +177,10 @@ if user_input:
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("Processing in high-speed..."):
+        with st.spinner("AI is thinking..."):
             stream = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": "You are Alpha AI, an advanced assistant built by Hasith."}] + st.session_state.messages[-12:],
+                messages=[{"role": "system", "content": "You are Alpha AI, an advanced AI by Hasith."}] + st.session_state.messages[-12:],
                 temperature=temp,
                 presence_penalty=presence_pen,
                 frequency_penalty=freq_pen,
