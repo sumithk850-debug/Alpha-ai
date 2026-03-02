@@ -1,165 +1,183 @@
 import streamlit as st
 from groq import Groq
-import base64
-import sys
-from io import StringIO
+import sqlite3
+import bcrypt
+import json
+import numpy as np
+from datetime import datetime
 
-# 1. Page Configuration
-st.set_page_config(page_title="Alpha AI ⚡ Extreme", page_icon="⚡", layout="centered")
+# ==============================
+# PAGE CONFIG
+# ==============================
+st.set_page_config(page_title="Alpha AI ⚡", layout="wide")
 
-# 2. Advanced Professional CSS
-st.markdown("""
-    <style>
-    .main { background-color: #0e1117; }
-    .hasith-header {
-        font-family: 'Montserrat', sans-serif;
-        font-weight: 700;
-        font-size: 50px;
-        color: #ffffff;
-        margin-bottom: 0px;
-        text-align: center;
-    }
-    .hasith-tagline {
-        font-family: 'Montserrat', sans-serif;
-        font-size: 16px;
-        color: #a0a0a0;
-        margin-top: -10px;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-    .stChatMessage { background-color: transparent !important; border: none !important; }
-    
-    /* Sidebar & Button Styling */
-    div.stButton > button {
-        background-color: #1e1e1e;
-        color: #FFD700;
-        border: 1px solid #30363d;
-        border-radius: 12px;
-        font-size: 13px;
-        width: 100%;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        border-color: #FFD700;
-        background-color: #252525;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+# ==============================
+# DATABASE SETUP
+# ==============================
+conn = sqlite3.connect("alpha_ai.db", check_same_thread=False)
+cursor = conn.cursor()
 
-# 3. Session State Initialization
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT,
+    plan TEXT DEFAULT 'free'
+)
+""")
 
-# 4. API Client (Using Llama 3.3 70B for Ultra Intelligence)
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except Exception:
-    st.error("CRITICAL ERROR: GROQ_API_KEY is missing in Streamlit Secrets.")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS memory(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT,
+    role TEXT,
+    content TEXT,
+    embedding TEXT,
+    timestamp TEXT
+)
+""")
+
+conn.commit()
+
+# ==============================
+# AUTH FUNCTIONS
+# ==============================
+def register(username, password):
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+    try:
+        cursor.execute("INSERT INTO users(username,password) VALUES(?,?)",
+                       (username, hashed))
+        conn.commit()
+        return True
+    except:
+        return False
+
+def login(username, password):
+    cursor.execute("SELECT password FROM users WHERE username=?", (username,))
+    data = cursor.fetchone()
+    if data:
+        return bcrypt.checkpw(password.encode(), data[0])
+    return False
+
+def get_plan(username):
+    cursor.execute("SELECT plan FROM users WHERE username=?", (username,))
+    return cursor.fetchone()[0]
+
+def upgrade_user(username):
+    cursor.execute("UPDATE users SET plan='premium' WHERE username=?", (username,))
+    conn.commit()
+
+# ==============================
+# VECTOR MEMORY
+# ==============================
+def create_embedding(text):
+    return np.random.rand(384).tolist()
+
+def save_memory(username, role, content):
+    embedding = create_embedding(content)
+    cursor.execute("INSERT INTO memory(username,role,content,embedding,timestamp) VALUES(?,?,?,?,?)",
+                   (username, role, content, json.dumps(embedding), str(datetime.now())))
+    conn.commit()
+
+def load_memory(username):
+    cursor.execute("SELECT role,content FROM memory WHERE username=? ORDER BY id ASC", (username,))
+    return cursor.fetchall()
+
+# ==============================
+# SESSION
+# ==============================
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+# ==============================
+# LOGIN PAGE
+# ==============================
+if not st.session_state.user:
+    st.title("🔐 Alpha AI Login")
+
+    mode = st.radio("Select Option", ["Login", "Register"])
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if mode == "Register":
+        if st.button("Create Account"):
+            if register(username, password):
+                st.success("Account Created Successfully")
+            else:
+                st.error("Username Already Exists")
+
+    if mode == "Login":
+        if st.button("Login"):
+            if login(username, password):
+                st.session_state.user = username
+                st.rerun()
+            else:
+                st.error("Invalid Credentials")
+
     st.stop()
 
-# 5. Sidebar - Advanced Intelligence & Python Lab
-with st.sidebar:
-    st.title("⚙️ System Control")
-    ai_mode = st.radio("Intelligence Level:", ["Normal", "Pro (Deep Expert)"], index=1)
-    
-    st.write("---")
-    st.subheader("🛠️ Intelligence Tuning")
-    # Optimized values to prevent repetition and maximize logic
-    temp_val = st.slider("Logic Precision (Temp):", 0.0, 1.0, 0.3 if "Pro" in ai_mode else 0.6)
-    presence_penalty = st.slider("Creativity (Presence):", 0.0, 2.0, 0.8)
-    frequency_penalty = st.slider("Vocabulary (Frequency):", 0.0, 2.0, 0.8)
-    
-    st.write("---")
-    st.subheader("🐍 Python Interpreter")
-    py_code = st.text_area("Enter Python code to execute:", height=120, placeholder="print(2**10)")
-    if st.button("🚀 Execute Python"):
-        st.info("Output:")
-        buffer = StringIO()
-        sys.stdout = buffer
-        try:
-            exec(py_code)
-            st.code(buffer.getvalue() if buffer.getvalue() else "Code executed successfully (No Output).", language="text")
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-        finally:
-            sys.stdout = sys.__stdout__
+# ==============================
+# MAIN APP
+# ==============================
+st.sidebar.success(f"Logged in as {st.session_state.user}")
+plan = get_plan(st.session_state.user)
+st.sidebar.info(f"Plan: {plan}")
 
-    st.write("---")
-    if st.button("🗑️ Wipe System Memory", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
+if st.sidebar.button("Upgrade to Premium 💳"):
+    upgrade_user(st.session_state.user)
+    st.sidebar.success("Upgraded to Premium!")
+    st.rerun()
 
-# 6. Header Branding
-st.markdown('<h1 class="hasith-header">Alpha AI <span style="color:#FFD700;">⚡</span></h1>', unsafe_allow_html=True)
-st.markdown('<p class="hasith-tagline">The Ultra Intelligent Platform | Developed by Hasith</p>', unsafe_allow_html=True)
+if st.sidebar.button("Logout"):
+    st.session_state.user = None
+    st.rerun()
 
-# 7. Quick Tools (Dynamic Visibility)
-quick_prompt = None
-if not st.session_state.messages:
-    st.write("Select a Quick Action:")
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        if st.button("📝 Summarize"): quick_prompt = "Provide a high-level summary of our discussion."
-    with c2:
-        if st.button("💡 Deep Dive"): quick_prompt = "Analyze this topic with extreme scientific depth."
-    with c3:
-        if st.button("✅ Refine"): quick_prompt = "Review and fix my input for any grammatical errors."
-    with c4:
-        if st.button("📋 Copy Chat"): st.info("Chat log is empty.")
-    st.write("---")
-else:
-    st.write(f"**Current Status:** {'🔴 Ultra Deep Intelligence Active' if 'Pro' in ai_mode else '🔵 Balanced Logic Active'}")
-    st.write("---")
+# ==============================
+# ADMIN DASHBOARD
+# ==============================
+if st.session_state.user == "admin":
+    st.sidebar.title("📊 Admin Panel")
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM users WHERE plan='premium'")
+    premium_users = cursor.fetchone()[0]
 
-# 8. Chat Rendering
+    st.sidebar.write(f"Total Users: {total_users}")
+    st.sidebar.write(f"Premium Users: {premium_users}")
+
+# ==============================
+# AI ENGINE
+# ==============================
+st.title("Alpha AI ⚡")
+st.caption("Created by Hasith")
+
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+if "messages" not in st.session_state:
+    history = load_memory(st.session_state.user)
+    st.session_state.messages = [
+        {"role": role, "content": content}
+        for role, content in history
+    ]
+
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 9. Ultra Intelligence Logic
-user_input = st.chat_input("Ask Alpha anything...")
-final_input = quick_prompt if quick_prompt else user_input
-
-if final_input:
-    st.session_state.messages.append({"role": "user", "content": final_input})
-    with st.chat_message("user"):
-        st.markdown(final_input)
+if prompt := st.chat_input("Ask Alpha AI..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    save_memory(st.session_state.user, "user", prompt)
 
     with st.chat_message("assistant"):
-        # Branding based on Hasith's request
-        spinner_msg = "🧠 Alpha's Ultra Thinking..." if "Pro" in ai_mode else "Normalis Thinking... ⚡"
-        
-        with st.spinner(spinner_msg):
-            # Strict persona to ensure full, diverse, and intelligent responses
-            system_persona = (
-                "You are Alpha AI ⚡. You are an elite artificial intelligence. "
-                "Instructions: 1. Provide 100% complete, uninterrupted answers. "
-                "2. Use advanced vocabulary. 3. NEVER repeat the same sentence. "
-                "4. Be accurate and scientifically sound. 5. Respond in English only."
-            )
+        model_name = "llama-3.3-70b-versatile" if plan == "premium" else "llama3-8b-8192"
 
-            try:
-                # Using the massive 70B model for ultimate IQ
-                stream = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "system", "content": system_persona}] + st.session_state.messages[-20:],
-                    temperature=temp_val,
-                    presence_penalty=presence_penalty,
-                    frequency_penalty=frequency_penalty,
-                    max_tokens=8192,
-                    stream=True
-                )
-                
-                response_area = st.empty()
-                collected_text = ""
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        collected_text += chunk.choices[0].delta.content
-                        response_area.markdown(collected_text + "▌")
-                
-                response_area.markdown(collected_text)
-                st.session_state.messages.append({"role": "assistant", "content": collected_text})
-                st.rerun()
+        stream = client.chat.completions.create(
+            model=model_name,
+            messages=st.session_state.messages[-15:],
+            stream=True
+        )
 
-            except Exception as e:
-                st.error("System connection lost. Please try again.")
+        response = st.write_stream(stream)
+
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    save_memory(st.session_state.user, "assistant", response)
