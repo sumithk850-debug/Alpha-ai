@@ -1,184 +1,166 @@
 import streamlit as st
 from groq import Groq
+import base64
 import sys
 from io import StringIO
-import numpy as np
-import json
-from datetime import datetime
 
-# ==============================
-# PAGE CONFIG
-# ==============================
+# ---------------------------------------------------------
+# 1. Page Configuration for Google Search (SEO)
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title="Alpha AI ⚡",
+    page_title="Alpha AI: Your Friendly AI Assistant and Python Code Runner",
     page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",
+    menu_items={
+        'Get Help': 'https://github.com/hasith/alpha-ai',
+        'Report a bug': "https://github.com/hasith/alpha-ai/issues",
+        'About': "# Alpha AI. Developed by Hasith. Your ultra-intelligent friendly assistant."
+    }
 )
 
-# ==============================
-# STYLE
-# ==============================
-st.markdown("""
-<style>
-.stApp {
-    background: radial-gradient(circle at center, #0a192f 0%, #020617 100%) !important;
-    color: #e2e8f0;
-}
-.main-title {
-    font-family: 'Inter', sans-serif;
-    font-size: 60px;
-    font-weight: 800;
-    text-align: center;
-    background: linear-gradient(to right, #ffffff, #ffd700);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 0px;
-}
-.tagline {
-    text-align: center;
-    color: #94a3b8;
-    font-size: 18px;
-    margin-bottom: 30px;
-}
-/* Image Neon Glow Effect */
-.brain-glow img {
-    border-radius: 20px;
-    box-shadow: 0 0 50px rgba(0, 191, 255, 0.4);
-    border: 1px solid rgba(0, 191, 255, 0.2);
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-}
-/* Action Card Styling */
-div.stButton > button {
-    background: rgba(30, 41, 59, 0.5);
-    border: 1px solid #1e293b;
-    border-radius: 12px;
-    color: #FFD700 !important;
-    height: 100px;
-    font-weight: bold;
-    transition: 0.3s;
-}
-div.stButton > button:hover {
-    border-color: #ffd700;
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
-}
-/* Chat Input Styling */
-.stChatInputContainer {
-    border-radius: 20px;
-    border: 1px solid #1e293b;
-    background: #0f172a !important;
-}
-</style>
-""", unsafe_allow_html=True)
+# 2. Add Meta Description for Search Engines
+st.markdown('<meta name="description" content="Alpha AI by Hasith: Your friendly AI assistant and Python code runner. Featuring high-precision logic and seamless code execution.">', unsafe_allow_html=True)
 
-# ==============================
-# SIDEBAR
-# ==============================
+# ---------------------------------------------------------
+# 3. Custom CSS Styling
+# ---------------------------------------------------------
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    .hasith-header {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 700;
+        font-size: 50px;
+        color: #ffffff;
+        margin-bottom: 0px;
+        text-align: center;
+    }
+    .hasith-tagline {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 16px;
+        color: #a0a0a0;
+        margin-top: -10px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .stChatMessage { background-color: transparent !important; border: none !important; }
+    div.stButton > button {
+        background-color: #1e1e1e;
+        color: #FFD700;
+        border: 1px solid #30363d;
+        border-radius: 12px;
+        font-size: 13px;
+        width: 100%;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        border-color: #FFD700;
+        background-color: #252525;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 4. Initialization & API
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+try:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except:
+    st.error("Missing GROQ_API_KEY. Please add it to Streamlit Secrets.")
+    st.stop()
+
+# 5. Sidebar - Control & Python Lab
 with st.sidebar:
     st.title("⚙️ System Control")
-    st.write("---")
-    st.subheader("🛠️ Intelligence Tuning")
-    temp = st.slider("Logic Precision:", 0.0, 1.0, 0.4)
-    presence_pen = st.slider("Diversity Penalty:", 0.0, 2.0, 1.1)
+    ai_mode = st.radio("Intelligence Level:", ["Normal", "Pro (Deep Expert)"], index=1)
     
     st.write("---")
-    st.subheader("🐍 Python Lab")
-    py_code = st.text_area("Write Python code here:", height=150)
-    if st.button("🚀 Run Code", use_container_width=True):
+    st.subheader("🛠️ Intelligence Tuning")
+    temp_val = st.slider("Logic Precision:", 0.0, 1.0, 0.3 if "Pro" in ai_mode else 0.6)
+    presence_penalty = st.slider("Creativity Penalty:", 0.0, 2.0, 0.8)
+    frequency_penalty = st.slider("Repetition Penalty:", 0.0, 2.0, 0.8)
+    
+    st.write("---")
+    st.subheader("🐍 Python Interpreter")
+    py_code = st.text_area("Write Python code here:", height=120, placeholder="print('Hello World')")
+    if st.button("🚀 Execute Python"):
         buffer = StringIO()
         sys.stdout = buffer
         try:
             exec(py_code)
-            st.code(buffer.getvalue() if buffer.getvalue() else "Done.", language="text")
+            st.code(buffer.getvalue() if buffer.getvalue() else "Executed successfully.", language="text")
         except Exception as e:
             st.error(f"Error: {e}")
         finally:
             sys.stdout = sys.__stdout__
 
     st.write("---")
-    if st.button("🗑️ Clear Chat Memory", use_container_width=True):
+    if st.button("🗑️ Wipe System Memory", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-# ==============================
-# HEADER
-# ==============================
-st.markdown('<h1 class="main-title">Alpha AI ⚡</h1>', unsafe_allow_html=True)
-st.markdown('<p class="tagline">Your Friendly AI Assistant & Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
+# 6. Header Branding
+st.markdown('<h1 class="hasith-header">Alpha AI <span style="color:#FFD700;">⚡</span></h1>', unsafe_allow_html=True)
+st.markdown('<p class="hasith-tagline">Your Friendly AI Assistant and Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
 
-# ==============================
-# HERO IMAGE
-# ==============================
-st.markdown('<div class="brain-glow">', unsafe_allow_html=True)
-try:
-    st.image("Digital-twins-of-the-brain-predict-neural-responses-in-real-time-398376-960x540.jpg", use_container_width=True)
-except:
-    st.warning("Please verify the image filename in your GitHub repository.")
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ==============================
-# QUICK ACTIONS
-# ==============================
-st.write("### 🚀 Quick Actions")
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("📝 Summarize\nGet a concise summary"):
-        st.session_state.messages.append({"role": "user", "content": "Summarize this topic for me."})
-        st.rerun()
-with col2:
-    if st.button("💡 Deep Dive\nDetailed exploration"):
-        st.session_state.messages.append({"role": "user", "content": "Explain this in extreme detail."})
-        st.rerun()
-with col3:
-    if st.button("✅ Refine\nImprove & polish text"):
-        st.session_state.messages.append({"role": "user", "content": "Refine and improve this text for me."})
-        st.rerun()
+# 7. Quick Tools (Auto-Hide Logic)
+quick_prompt = None
+if not st.session_state.messages:
+    st.write("Quick Actions:")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        if st.button("📝 Summarize"): quick_prompt = "Provide a professional summary of our discussion."
+    with c2:
+        if st.button("💡 Deep Dive"): quick_prompt = "Explain this topic with scientific precision."
+    with c3:
+        if st.button("✅ Refine"): quick_prompt = "Check and fix any grammar issues in my message."
+    with c4:
+        if st.button("📋 Copy Chat"): st.info("Chat is empty.")
+else:
+    st.write(f"**System Status:** {'🔴 Ultra Deep Intelligence Active' if 'Pro' in ai_mode else '🔵 Friendly Assistant Active'}")
 
 st.write("---")
 
-# ==============================
-# CHAT LOGIC
-# ==============================
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Show previous messages
+# 8. Render Chat Messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# ==============================
-# CONNECT GROQ
-# ==============================
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except:
-    st.error("GROQ_API_KEY is missing in Streamlit Secrets!")
-    st.stop()
-
-# ==============================
-# CHAT INPUT
-# ==============================
+# 9. Intelligence Logic
 user_input = st.chat_input("Ask Alpha anything...")
+final_input = quick_prompt if quick_prompt else user_input
 
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+if final_input:
+    st.session_state.messages.append({"role": "user", "content": final_input})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(final_input)
+
     with st.chat_message("assistant"):
-        try:
-            stream = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": "You are Alpha AI, a high-performance assistant created by Hasith."}] + st.session_state.messages[-10:],
-                temperature=temp,
-                presence_penalty=presence_pen,
-                stream=True
-            )
-            response = st.write_stream(stream)
-            if not isinstance(response, str):
-                response = str(response)
-        except Exception as e:
-            response = f"AI Error: {e}"
-    st.session_state.messages.append({"role": "assistant", "content": response})
+        spinner_msg = "🧠 Alpha's Ultra Thinking..." if "Pro" in ai_mode else "Normalis Thinking... ⚡"
+        
+        with st.spinner(spinner_msg):
+            try:
+                # Using Llama 3.3 70B for unmatched IQ
+                stream = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "system", "content": "You are Alpha AI by Hasith. You are a friendly, ultra-intelligent assistant. Provide diverse, accurate English responses without repeating yourself."}] + st.session_state.messages[-20:],
+                    temperature=temp_val,
+                    presence_penalty=presence_penalty,
+                    frequency_penalty=frequency_penalty,
+                    max_tokens=8192,
+                    stream=True
+                )
+                
+                res_area = st.empty()
+                full_res = ""
+                for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        full_res += chunk.choices[0].delta.content
+                        res_area.markdown(full_res + "▌")
+                
+                res_area.markdown(full_res)
+                st.session_state.messages.append({"role": "assistant", "content": full_res})
+                st.rerun()
+            except Exception as e:
+                st.error("Connection Error. Please try again.")
