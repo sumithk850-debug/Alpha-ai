@@ -34,7 +34,7 @@ st.markdown("""
         font-size: 18px;
         margin-bottom: 30px;
     }
-    /* Image Neon Glow */
+    /* Image Neon Glow Effect */
     .brain-glow img {
         border-radius: 20px;
         box-shadow: 0 0 50px rgba(0, 191, 255, 0.4);
@@ -57,10 +57,16 @@ st.markdown("""
         border-color: #ffd700;
         box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
     }
+    /* Chat Input Styling */
+    .stChatInputContainer {
+        border-radius: 20px;
+        border: 1px solid #1e293b;
+        background: #0f172a !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Sidebar - Tuning & Python Tools
+# 3. Sidebar - Tuning & Developer Tools
 with st.sidebar:
     st.title("⚙️ System Control")
     st.write("---")
@@ -70,7 +76,7 @@ with st.sidebar:
     
     st.write("---")
     st.subheader("🐍 Python Lab")
-    py_code = st.text_area("Write Python code:", height=150)
+    py_code = st.text_area("Write Python code here:", height=150)
     if st.button("🚀 Run Code", use_container_width=True):
         buffer = StringIO()
         sys.stdout = buffer
@@ -83,42 +89,41 @@ with st.sidebar:
             sys.stdout = sys.__stdout__
 
     st.write("---")
-    if st.button("🗑️ Clear Chat", use_container_width=True):
+    if st.button("🗑️ Clear Chat Memory", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
 
-# 4. Header & Your Image
+# 4. Header & Hero Image
 st.markdown('<h1 class="main-title">Alpha AI ⚡</h1>', unsafe_allow_html=True)
 st.markdown('<p class="tagline">Your Friendly AI Assistant & Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
 
-# ✅ ඔබ ලබාදුන් නම සහිත පින්තූරය සම්බන්ධ කිරීම
+# ✅ Linking your specific GitHub image file
 st.markdown('<div class="brain-glow">', unsafe_allow_html=True)
 try:
-    # ඔබ GitHub එකට අප්ලෝඩ් කළ ගොනු නාමය මෙහි ඇතුළත් කර ඇත
     st.image("Digital-twins-of-the-brain-predict-neural-responses-in-real-time-398376-960x540.jpg", use_container_width=True)
 except:
-    st.warning("Please ensure the image file is in your GitHub repository.")
+    st.warning("Please verify the image filename in your GitHub repository.")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. Quick Actions
+# 5. Quick Actions Section
 st.write("### 🚀 Quick Actions")
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("📝 Summarize"):
-        st.session_state.messages.append({"role": "user", "content": "Summarize this."})
+    if st.button("📝 Summarize\nGet a concise summary"):
+        st.session_state.messages.append({"role": "user", "content": "Summarize this topic for me."})
         st.rerun()
 with col2:
-    if st.button("💡 Deep Dive"):
-        st.session_state.messages.append({"role": "user", "content": "Explain in detail."})
+    if st.button("💡 Deep Dive\nDetailed exploration"):
+        st.session_state.messages.append({"role": "user", "content": "Explain this in extreme detail."})
         st.rerun()
 with col3:
-    if st.button("✅ Refine"):
-        st.session_state.messages.append({"role": "user", "content": "Refine this text."})
+    if st.button("✅ Refine\nImprove & polish text"):
+        st.session_state.messages.append({"role": "user", "content": "Refine and improve this text for me."})
         st.rerun()
 
 st.write("---")
 
-# 6. AI Logic
+# 6. Chat Logic & Groq AI Engine
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -126,7 +131,13 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+# Groq Connection
+try:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except:
+    st.error("GROQ_API_KEY is missing in Streamlit Secrets!")
+    st.stop()
+
 user_input = st.chat_input("Ask Alpha anything...")
 
 if user_input:
@@ -136,7 +147,7 @@ if user_input:
     with st.chat_message("assistant"):
         stream = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "system", "content": "You are Alpha AI by Hasith."}] + st.session_state.messages[-10:],
+            messages=[{"role": "system", "content": "You are Alpha AI, a high-performance assistant created by Hasith."}] + st.session_state.messages[-10:],
             temperature=temp,
             presence_penalty=presence_pen,
             stream=True
