@@ -2,19 +2,18 @@ import streamlit as st
 from groq import Groq
 import sys
 from io import StringIO
-import base64
 
 # -------------------------
 # 1️⃣ Page Configuration
 # -------------------------
 st.set_page_config(
-    page_title="Alpha AI ⚡",
+    page_title="Alpha AI ⚡ Free",
     page_icon="⚡",
     layout="centered",
     menu_items={
         'Get Help': 'https://github.com/hasith/alpha-ai',
         'Report a bug': "https://github.com/hasith/alpha-ai/issues",
-        'About': "# Alpha AI. Developed by Hasith. Free AI Assistant with Python Lab, Voice Input, File Upload, Dark/Light mode."
+        'About': "# Alpha AI Free Version. Developed by Hasith."
     }
 )
 
@@ -23,12 +22,12 @@ st.set_page_config(
 # -------------------------
 st.markdown("""
 <div style="width:100%; padding:10px; background-color:#FFD700; color:#000; border-radius:10px; text-align:center; font-weight:bold; margin-bottom:15px;">
-Ultimate Free Version ⚡ | Buy the <a href='https://your-premium-link.com' target='_blank' style='color:#000; text-decoration:underline;'>Premium Version</a> for full features!
+Ultimate Free Version ⚡ | Buy the <a href='https://your-premium-page.com' target='_blank' style='color:#000; text-decoration:underline;'>Premium Version</a> for full features!
 </div>
 """, unsafe_allow_html=True)
 
 # -------------------------
-# 3️⃣ Dark / Light Mode
+# 3️⃣ Dark / Light Toggle
 # -------------------------
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
@@ -64,18 +63,12 @@ except:
     st.stop()
 
 # -------------------------
-# 6️⃣ Sidebar Controls
+# 6️⃣ Sidebar Python Lab
 # -------------------------
 with st.sidebar:
-    st.title("⚙️ System Control")
-    temp_val = st.slider("Logic Precision:", 0.0, 1.0, 0.5)
-    presence_penalty = st.slider("Creativity Penalty:", 0.0, 2.0, 0.8)
-    frequency_penalty = st.slider("Repetition Penalty:", 0.0, 2.0, 0.8)
-    
-    st.write("---")
-    st.subheader("🐍 Python Lab")
+    st.title("🐍 Python Lab")
     py_code = st.text_area("Write Python code here:", height=120, placeholder="print('Hello World')")
-    if st.button("🚀 Execute Python"):
+    if st.button("🚀 Run Python"):
         buffer = StringIO()
         sys.stdout = buffer
         try:
@@ -94,62 +87,69 @@ with st.sidebar:
 # -------------------------
 # 7️⃣ Header
 # -------------------------
-st.markdown('<h1 style="text-align:center;">Alpha AI ⚡</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align:center;">Free AI Assistant with Python Lab, Voice Input & File Upload | Developed by Hasith</p>', unsafe_allow_html=True)
+st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ Free</h1>', unsafe_allow_html=True)
+st.markdown('<p style="text-align:center;">Friendly AI Assistant | Developed by Hasith</p>', unsafe_allow_html=True)
 
 # -------------------------
-# 8️⃣ File Upload Support
+# 8️⃣ Quick Chat Buttons
 # -------------------------
-uploaded_file = st.file_uploader("📁 Upload a file (txt/pdf) for analysis:", type=["txt","pdf"])
-if uploaded_file:
-    file_content = uploaded_file.read().decode("utf-8", errors="ignore")
-    st.session_state.messages.append({"role": "user", "content": f"[File Content]: {file_content}"})
-    st.success(f"File '{uploaded_file.name}' uploaded successfully and added to chat.")
+st.write("Quick Actions:")
+c1, c2, c3 = st.columns(3)
+with c1:
+    if st.button("📝 Summarize"):
+        quick_prompt = "Provide a professional summary of the topic."
+        st.session_state.messages.append({"role":"user","content":quick_prompt})
+with c2:
+    if st.button("💡 Deep Dive"):
+        quick_prompt = "Explain this topic with full details."
+        st.session_state.messages.append({"role":"user","content":quick_prompt})
+with c3:
+    if st.button("✅ Refine"):
+        quick_prompt = "Check and improve grammar and clarity."
+        st.session_state.messages.append({"role":"user","content":quick_prompt})
 
 # -------------------------
-# 9️⃣ Voice Input (Simulated)
-# -------------------------
-st.markdown("🎤 **Voice Input:** Type your speech below (simulate voice input).")
-voice_text = st.text_input("Voice Input Text")
-
-# -------------------------
-# 10️⃣ Show Chat Messages
+# 9️⃣ Display Chat Messages
 # -------------------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # -------------------------
-# 11️⃣ Chat Input & AI Logic
+# 10️⃣ Chat Input & AI Logic (Spinner, Full Response)
 # -------------------------
 user_input = st.chat_input("Ask Alpha anything...")
-final_input = voice_text if voice_text else user_input
-
-if final_input:
-    st.session_state.messages.append({"role": "user", "content": final_input})
+if user_input:
+    st.session_state.messages.append({"role":"user","content":user_input})
     with st.chat_message("user"):
-        st.markdown(final_input)
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        try:
-            stream = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": "You are Alpha AI by Hasith. Friendly, intelligent assistant."}] + st.session_state.messages[-20:],
-                temperature=temp_val,
-                presence_penalty=presence_penalty,
-                frequency_penalty=frequency_penalty,
-                max_tokens=8192,
-                stream=True
-            )
+        with st.spinner("🧠 Alpha is thinking..."):
+            try:
+                # Get full response at once, no streaming
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role":"system","content":"You are Alpha AI by Hasith. Friendly, intelligent assistant."}] + st.session_state.messages[-20:],
+                    temperature=0.5,
+                    presence_penalty=0.8,
+                    frequency_penalty=0.8,
+                    max_tokens=4096,
+                    stream=False
+                )
 
-            res_area = st.empty()
-            full_res = ""
-            for chunk in stream:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    full_res += delta.content
-                    res_area.markdown(full_res + "▌")
-            res_area.markdown(full_res)
-            st.session_state.messages.append({"role": "assistant", "content": full_res})
-        except Exception as e:
-            st.error(f"AI Connection Error: {e}")
+                full_res = response.choices[0].message.content
+
+                # Remove repetition
+                lines = full_res.split("\n")
+                deduped = []
+                for line in lines:
+                    if not deduped or line.strip() != deduped[-1].strip():
+                        deduped.append(line)
+                full_res = "\n".join(deduped)
+
+                st.markdown(full_res)
+                st.session_state.messages.append({"role":"assistant","content":full_res})
+
+            except Exception as e:
+                st.error(f"AI Connection Error: {e}")
