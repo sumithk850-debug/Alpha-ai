@@ -4,6 +4,7 @@ import sqlite3
 import numpy as np
 import json
 from datetime import datetime
+import sys, io
 
 # ==============================
 # PAGE CONFIG
@@ -16,7 +17,7 @@ st.set_page_config(page_title="Alpha AI ⚡", layout="wide")
 conn = sqlite3.connect("alpha_ai.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Users table (for future multi-user, but we only use "hasith")
+# Users table (for future multi-user)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +43,7 @@ conn.commit()
 # AUTO USER (Owner Only)
 # ==============================
 if "user" not in st.session_state:
-    st.session_state.user = "hasith"  # Only you
+    st.session_state.user = "hasith"  # Owner only
 
 username = st.session_state.user
 plan = "premium"  # Owner always premium
@@ -54,12 +55,23 @@ def create_embedding(text):
     return np.random.rand(384).tolist()
 
 def save_memory(role, content):
-    embedding = create_embedding(content)
-    cursor.execute(
-        "INSERT INTO memory(username,role,content,embedding,timestamp) VALUES(?,?,?,?,?)",
-        (username, role, content, json.dumps(embedding), str(datetime.now()))
-    )
-    conn.commit()
+    try:
+        # Ensure content is string
+        if content is None:
+            content_text = ""
+        elif isinstance(content, str):
+            content_text = content
+        else:
+            content_text = str(content)
+
+        embedding = create_embedding(content_text)
+        cursor.execute(
+            "INSERT INTO memory(username,role,content,embedding,timestamp) VALUES(?,?,?,?,?)",
+            (username, role, content_text, json.dumps(embedding), str(datetime.now()))
+        )
+        conn.commit()
+    except Exception as e:
+        st.error(f"Memory save failed: {e}")
 
 def load_memory():
     cursor.execute(
@@ -122,14 +134,17 @@ if prompt := st.chat_input("Ask Alpha AI..."):
 
     with st.chat_message("assistant"):
         # Streaming AI
-        stream = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=st.session_state.messages[-15:],
-            stream=True
-        )
-        response = st.write_stream(stream)
+        try:
+            stream = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=st.session_state.messages[-15:],
+                stream=True
+            )
+            response = st.write_stream(stream)
+        except Exception as e:
+            response = f"AI Error: {e}"
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": str(response)})
     save_memory("assistant", response)
 
 # ==============================
@@ -138,7 +153,6 @@ if prompt := st.chat_input("Ask Alpha AI..."):
 st.sidebar.subheader("🐍 Python Lab")
 py_code = st.sidebar.text_area("Write Python code here", height=150)
 if st.sidebar.button("Run Code"):
-    import sys, io
     buffer = io.StringIO()
     sys.stdout = buffer
     try:
