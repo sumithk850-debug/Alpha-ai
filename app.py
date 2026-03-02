@@ -3,9 +3,7 @@ from groq import Groq
 import sys
 from io import StringIO
 
-# ---------------------------------------------------------
 # 1. Page Configuration & Analytics
-# ---------------------------------------------------------
 st.set_page_config(
     page_title="Alpha AI ⚡",
     page_icon="⚡",
@@ -24,9 +22,7 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 2. Ultra-Digital Cyberpunk UI Styling
-# ---------------------------------------------------------
+# 2. Modern Cyberpunk UI Styling
 st.markdown("""
     <style>
     .stApp {
@@ -49,7 +45,7 @@ st.markdown("""
         font-size: 18px;
         margin-bottom: 30px;
     }
-    /* Image Neon Glow Effect */
+    /* Image Neon Glow */
     .brain-glow img {
         border-radius: 25px;
         box-shadow: 0 0 60px rgba(0, 191, 255, 0.4);
@@ -74,23 +70,14 @@ st.markdown("""
         box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
         transform: translateY(-5px);
     }
-    /* Chat Input Styling */
-    .stChatInputContainer {
-        border-radius: 20px;
-        border: 1px solid #1e293b;
-        background: #0f172a !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 3. Sidebar - Tuning & Developer Tools
-# ---------------------------------------------------------
+# 3. Sidebar - Tuning & Python Tools
 with st.sidebar:
     st.title("⚙️ System Control")
     st.write("---")
     
-    # Intelligence Tuning Sliders
     st.subheader("🛠️ Intelligence Tuning")
     temp = st.slider("Logic Precision (Temp):", 0.0, 1.0, 0.4)
     presence_pen = st.slider("Diversity Penalty:", 0.0, 2.0, 1.3)
@@ -98,7 +85,6 @@ with st.sidebar:
     
     st.write("---")
     
-    # Python Lab
     st.subheader("🐍 Python Lab")
     py_code = st.text_area("Write Python code:", height=150)
     if st.button("🚀 Run Python Code", use_container_width=True):
@@ -117,44 +103,39 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# ---------------------------------------------------------
-# 4. Main UI Content
-# ---------------------------------------------------------
+# 4. Header & Your Image
 st.markdown('<h1 class="main-title">Alpha AI ⚡</h1>', unsafe_allow_html=True)
 st.markdown('<p class="tagline">Your Friendly AI Assistant & Python Code Runner | Developed by Hasith</p>', unsafe_allow_html=True)
 
-# ✅ පින්තූරය මෙතනින් පෙන්වයි (Local GitHub Image)
+# ✅ This links the image file you uploaded to the UI
 st.markdown('<div class="brain-glow">', unsafe_allow_html=True)
 try:
+    # This looks for the "digital_brain.jpg" file you uploaded to GitHub
     st.image("digital_brain.jpg", use_container_width=True)
 except:
-    st.error("Error: Please upload 'digital_brain.jpg' to your GitHub repository.")
+    st.warning("Please make sure 'digital_brain.jpg' is uploaded to the same folder as app.py in GitHub.")
 st.markdown('</div>', unsafe_allow_html=True)
 
-# 5. Quick Actions Section
+# 5. Quick Actions
 st.write("### 🚀 Quick Actions")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("📝 Summarize\nGet a concise summary"):
-        st.session_state.messages.append({"role": "user", "content": "Summarize this topic for me."})
+    if st.button("📝 Summarize"):
+        st.session_state.messages.append({"role": "user", "content": "Please summarize our current topic."})
         st.rerun()
-
 with col2:
-    if st.button("💡 Deep Dive\nDetailed exploration"):
+    if st.button("💡 Deep Dive"):
         st.session_state.messages.append({"role": "user", "content": "Explain this in extreme detail."})
         st.rerun()
-
 with col3:
-    if st.button("✅ Refine\nImprove & polish text"):
+    if st.button("✅ Refine"):
         st.session_state.messages.append({"role": "user", "content": "Refine and improve this text for me."})
         st.rerun()
 
 st.write("---")
 
-# ---------------------------------------------------------
-# 6. Chat Interface & AI Engine
-# ---------------------------------------------------------
+# 6. AI Logic
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -162,11 +143,10 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# API Client Connection
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("GROQ_API_KEY missing in Secrets!")
+    st.error("GROQ_API_KEY is missing!")
     st.stop()
 
 user_input = st.chat_input("Ask Alpha anything...")
@@ -175,16 +155,14 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
-
     with st.chat_message("assistant"):
-        with st.spinner("AI is thinking..."):
-            stream = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "system", "content": "You are Alpha AI, an advanced AI by Hasith."}] + st.session_state.messages[-12:],
-                temperature=temp,
-                presence_penalty=presence_pen,
-                frequency_penalty=freq_pen,
-                stream=True
-            )
-            full_res = st.write_stream(stream)
-            st.session_state.messages.append({"role": "assistant", "content": full_res})
+        stream = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": "You are Alpha AI by Hasith."}] + st.session_state.messages[-12:],
+            temperature=temp,
+            presence_penalty=presence_pen,
+            frequency_penalty=freq_pen,
+            stream=True
+        )
+        full_res = st.write_stream(stream)
+        st.session_state.messages.append({"role": "assistant", "content": full_res})
