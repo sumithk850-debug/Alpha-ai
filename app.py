@@ -2,154 +2,140 @@ import streamlit as st
 from groq import Groq
 import sys
 from io import StringIO
+from streamlit_mic_recorder import speech_to_text
+import hashlib
 
 # -------------------------
 # 1️⃣ Page Configuration
 # -------------------------
-st.set_page_config(
-    page_title="Alpha AI ⚡ Free",
-    page_icon="⚡",
-    layout="centered",
-    menu_items={
-        'Get Help': 'https://github.com/hasith/alpha-ai',
-        'Report a bug': "https://github.com/hasith/alpha-ai/issues",
-        'About': "# Alpha AI Free Version. Developed by Hasith."
-    }
-)
+st.set_page_config(page_title="Alpha AI ⚡ Secure", page_icon="⚡", layout="centered")
 
 # -------------------------
-# 2️⃣ Premium Banner Top
+# 2️⃣ User Authentication Logic
+# -------------------------
+if "user_db" not in st.session_state:
+    # Default Admin (Hasith) stored
+    st.session_state.user_db = {}
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.current_user = None
+
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    return make_hashes(password) == hashed_text
+
+# -------------------------
+# 3️⃣ Custom CSS & Voice JS
 # -------------------------
 st.markdown("""
-<div style="width:100%; padding:10px; background-color:#FFD700; color:#000; border-radius:10px; text-align:center; font-weight:bold; margin-bottom:15px;">
-Ultimate Free Version ⚡ | Buy the <a href='https://your-premium-page.com' target='_blank' style='color:#000; text-decoration:underline;'>Premium Version</a> for full features!
-</div>
-""", unsafe_allow_html=True)
-
-# -------------------------
-# 3️⃣ Dark / Light Toggle
-# -------------------------
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True
-
-theme_toggle = st.sidebar.checkbox("🌗 Dark Mode", value=st.session_state.dark_mode)
-st.session_state.dark_mode = theme_toggle
-
-bg_color = "#0e1117" if theme_toggle else "#f9f9f9"
-text_color = "#ffffff" if theme_toggle else "#000000"
-
-st.markdown(f"""
 <style>
-body {{ background-color: {bg_color}; color: {text_color}; }}
-.stChatMessage {{ background-color: transparent !important; border: none !important; }}
-div.stButton > button {{ background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; transition:0.3s; }}
-div.stButton > button:hover {{ border-color:#FFD700; background-color:#252525; }}
+    .premium-banner { width:100%; padding:10px; background-color:#FFD700; color:#000; border-radius:10px; text-align:center; font-weight:bold; margin-bottom:15px; }
+    div.stButton > button { background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; transition:0.3s; font-weight: bold; }
+    div.stButton > button:hover { border-color:#FFD700; background-color:#252525; }
+    .stChatInputContainer { border-radius: 20px; }
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------
-# 4️⃣ Initialize Messages
-# -------------------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+def speak_text(text):
+    clean_text = text.replace("'", "").replace("\n", " ").replace('"', '')
+    js_code = f"<script>var msg = new SpeechSynthesisUtterance('{clean_text}'); window.speechSynthesis.speak(msg);</script>"
+    st.components.v1.html(js_code, height=0)
 
 # -------------------------
-# 5️⃣ Connect Groq AI
+# 4️⃣ Login / Registration UI
 # -------------------------
-try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except:
-    st.error("Missing GROQ_API_KEY in Streamlit Secrets!")
+if not st.session_state.logged_in:
+    st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ Access</h1>', unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["Login", "Register"])
+    
+    with tab1:
+        user = st.text_input("Username")
+        pas = st.text_input("Password", type="password")
+        if st.button("Login"):
+            # ✅ HASITH ADMIN BYPASS (No password needed for you)
+            if user.lower() == "hasith":
+                st.session_state.logged_in = True
+                st.session_state.current_user = "Hasith (Admin)"
+                st.rerun()
+            elif user in st.session_state.user_db:
+                if check_hashes(pas, st.session_state.user_db[user]["password"]):
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = user
+                    st.rerun()
+                else:
+                    st.error("Invalid Password")
+            else:
+                st.error("User not found")
+
+    with tab2:
+        new_user = st.text_input("New Username")
+        new_email = st.text_input("Email Address")
+        new_pas = st.text_input("New Password", type="password")
+        if st.button("Create Account"):
+            if new_user.lower() == "hasith":
+                st.error("Admin name reserved")
+            else:
+                st.session_state.user_db[new_user] = {
+                    "password": make_hashes(new_pas),
+                    "email": new_email
+                }
+                st.success("Account created! Please Login.")
     st.stop()
 
 # -------------------------
-# 6️⃣ Sidebar Python Lab
+# 5️⃣ Main App (After Login)
 # -------------------------
-with st.sidebar:
-    st.title("🐍 Python Lab")
-    py_code = st.text_area("Write Python code here:", height=120, placeholder="print('Hello World')")
-    if st.button("🚀 Run Python"):
-        buffer = StringIO()
-        sys.stdout = buffer
-        try:
-            exec(py_code)
-            st.code(buffer.getvalue() if buffer.getvalue() else "Executed successfully.", language="text")
-        except Exception as e:
-            st.error(f"Error: {e}")
-        finally:
-            sys.stdout = sys.__stdout__
+st.markdown(f'<div class="premium-banner">Logged in as: {st.session_state.current_user}</div>', unsafe_allow_html=True)
+st.markdown('<h1 style="text-align:center;">Alpha AI ⚡</h1>', unsafe_allow_html=True)
 
+# Voice Input Section
+st.write("### 🎤 Voice Command")
+voice_text = speech_to_text(language='en', use_container_width=True, just_once=True, key='st_voice')
+
+# Sidebar Tools
+with st.sidebar:
+    st.title("⚙️ Controls")
+    st.write(f"User: {st.session_state.current_user}")
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
     st.write("---")
     if st.button("🗑️ Clear Chat"):
         st.session_state.messages = []
         st.rerun()
 
-# -------------------------
-# 7️⃣ Header
-# -------------------------
-st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ Free</h1>', unsafe_allow_html=True)
-st.markdown('<p style="text-align:center;">Friendly AI Assistant | Developed by Hasith</p>', unsafe_allow_html=True)
+# AI Logic
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# -------------------------
-# 8️⃣ Quick Chat Buttons
-# -------------------------
-st.write("Quick Actions:")
-c1, c2, c3 = st.columns(3)
-with c1:
-    if st.button("📝 Summarize"):
-        quick_prompt = "Provide a professional summary of the topic."
-        st.session_state.messages.append({"role":"user","content":quick_prompt})
-with c2:
-    if st.button("💡 Deep Dive"):
-        quick_prompt = "Explain this topic with full details."
-        st.session_state.messages.append({"role":"user","content":quick_prompt})
-with c3:
-    if st.button("✅ Refine"):
-        quick_prompt = "Check and improve grammar and clarity."
-        st.session_state.messages.append({"role":"user","content":quick_prompt})
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+user_input = st.chat_input("Type your message...")
 
-# -------------------------
-# 9️⃣ Display Chat Messages
-# -------------------------
-for msg in st.session_state.messages:
+final_query = voice_text if voice_text else user_input
+
+if final_query:
+    st.session_state.messages.append({"role": "user", "content": final_query})
+
+for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            if st.button(f"🔊 Speak", key=f"sp_{i}"):
+                speak_text(msg["content"])
 
-# -------------------------
-# 10️⃣ Chat Input & AI Logic (Spinner, Full Response)
-# -------------------------
-user_input = st.chat_input("Ask Alpha anything...")
-if user_input:
-    st.session_state.messages.append({"role":"user","content":user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
+if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
     with st.chat_message("assistant"):
-        with st.spinner("🧠 Alpha is thinking..."):
-            try:
-                # Get full response at once, no streaming
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role":"system","content":"You are Alpha AI by Hasith. Friendly, intelligent assistant."}] + st.session_state.messages[-20:],
-                    temperature=0.5,
-                    presence_penalty=0.8,
-                    frequency_penalty=0.8,
-                    max_tokens=4096,
-                    stream=False
-                )
-
-                full_res = response.choices[0].message.content
-
-                # Remove repetition
-                lines = full_res.split("\n")
-                deduped = []
-                for line in lines:
-                    if not deduped or line.strip() != deduped[-1].strip():
-                        deduped.append(line)
-                full_res = "\n".join(deduped)
-
-                st.markdown(full_res)
-                st.session_state.messages.append({"role":"assistant","content":full_res})
-
-            except Exception as e:
-                st.error(f"AI Connection Error: {e}")
+        with st.spinner("Alpha is thinking..."):
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "system", "content": "You are Alpha AI by Hasith."}] + st.session_state.messages[-10:],
+                stream=False
+            )
+            res = response.choices[0].message.content
+            st.markdown(res)
+            st.session_state.messages.append({"role": "assistant", "content": res})
+            if st.button("🔊 Play Voice"):
+                speak_text(res)
