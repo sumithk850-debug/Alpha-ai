@@ -15,38 +15,11 @@ import json
 import os
 import base64
 from PyPDF2 import PdfReader
-import firebase_admin
-from firebase_admin import credentials, firestore
 
 # --- 1. Page Configuration ---
 st.set_page_config(page_title="Alpha AI ⚡ Created by Hasith", page_icon="⚡", layout="wide")
 
-# --- 2. Initialize Firebase (Cloud Storage) ---
-if not firebase_admin._apps:
-    try:
-        if "FIREBASE_TYPE" in st.secrets:
-            cred_dict = {
-                "type": st.secrets["FIREBASE_TYPE"],
-                "project_id": st.secrets["FIREBASE_PROJECT_ID"],
-                "private_key_id": st.secrets["FIREBASE_PRIVATE_KEY_ID"],
-                "private_key": st.secrets["FIREBASE_PRIVATE_KEY"].replace('\\n', '\n'),
-                "client_email": st.secrets["FIREBASE_CLIENT_EMAIL"],
-                "client_id": st.secrets["FIREBASE_CLIENT_ID"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-                "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{st.secrets['FIREBASE_CLIENT_EMAIL'].replace('@', '%40')}"
-            }
-            cred = credentials.Certificate(cred_dict)
-        else:
-            cred = credentials.Certificate('firebase_cred.json')
-        firebase_admin.initialize_app(cred)
-    except Exception as e:
-        st.error(f"Firebase Sync Error: {e}")
-
-db = firestore.client()
-
-# --- 3. Loading Screen (7 Seconds) ---
+# --- 2. Loading Screen (7 Seconds) ---
 if "loaded" not in st.session_state:
     placeholder = st.empty()
     with placeholder.container():
@@ -69,21 +42,13 @@ if "loaded" not in st.session_state:
     placeholder.empty()
     st.rerun()
 
-# --- 4. Database Helpers ---
-def sync_db():
-    users_ref = db.collection('users').stream()
-    return {doc.id: doc.to_dict() for doc in users_ref}
-
+# --- 3. Local Database Initialization ---
 if "user_db" not in st.session_state:
-    st.session_state.user_db = sync_db()
-    if not st.session_state.user_db:
-        initial = {
-            "matheesha": {"password": "123", "vault": [], "role": "VIP"},
-            "sadev": {"password": "123", "vault": [], "role": "VIP"}
-        }
-        for k, v in initial.items():
-            db.collection('users').document(k).set(v)
-        st.session_state.user_db = initial
+    # Default users (Local memory only)
+    st.session_state.user_db = {
+        "matheesha": {"password": "123", "vault": [], "role": "VIP"},
+        "sadev": {"password": "123", "vault": [], "role": "VIP"}
+    }
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -96,16 +61,16 @@ def make_hashes(password):
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
-# --- 5. Custom UI Styling ---
+# --- 4. Custom UI Styling ---
 st.markdown("""
 <style>
     .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:25px; font-size: 20px; }
     .vault-card { background: #262626; border-left: 5px solid #FFD700; padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; }
-    .warning-text { color: #ff4b4b; font-weight: bold; border: 1px solid #ff4b4b; padding: 10px; border-radius: 5px; text-align: center; background: rgba(255, 75, 75, 0.1); margin-bottom: 10px; }
+    .warning-text { color: #ff4b4b; font-weight: bold; border: 1px solid #ff4b4b; padding: 10px; border-radius: 5px; text-align: center; background: rgba(255, 75, 75, 0.1); margin-bottom: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 6. Security Portal ---
+# --- 5. Security Portal ---
 if not st.session_state.logged_in:
     st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ VIP Access Portal</h1>', unsafe_allow_html=True)
     tab_login, tab_reg = st.tabs(["🔐 Login", "📝 Register"])
@@ -131,6 +96,7 @@ if not st.session_state.logged_in:
                     st.error("Verification Name is Incorrect!")
             elif username_in in st.session_state.user_db:
                 stored_pass = st.session_state.user_db[username_in]["password"]
+                # Supports both plain '123' and hashed passwords
                 if password_in == stored_pass or check_hashes(password_in, stored_pass):
                     st.session_state.logged_in = True
                     st.session_state.current_user = username_in
@@ -145,16 +111,14 @@ if not st.session_state.logged_in:
         new_pass = st.text_input("New Password", type="password", key="reg_p_field")
         if st.button("Create Account"):
             if new_user and new_user not in st.session_state.user_db:
-                user_data = {"password": make_hashes(new_pass), "vault": [], "role": "Guest"}
-                db.collection('users').document(new_user).set(user_data)
-                st.session_state.user_db = sync_db()
+                st.session_state.user_db[new_user] = {"password": make_hashes(new_pass), "vault": [], "role": "Guest"}
                 st.success("Registration Successful!")
                 st.rerun()
             else:
-                st.error("Username already exists or invalid.")
+                st.error("Username already exists.")
     st.stop()
 
-# --- 7. Sidebar & Features ---
+# --- 6. Sidebar & Features ---
 current_user = st.session_state.current_user
 with st.sidebar:
     if current_user == "hasith123":
@@ -182,10 +146,10 @@ with st.sidebar:
         st.session_state.logged_in = False
         st.rerun()
 
-# --- 8. Main Interface ---
+# --- 7. Main Interface ---
 st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Mode: {ai_mode_selection}</div>', unsafe_allow_html=True)
 
-# Vision Uploader
+# Vision Uploader logic
 base64_img = None
 if "Vision" in ai_mode_selection:
     vision_file = st.file_uploader("🖼️ Upload Image for Llama 4 Scout Analysis", type=["jpg", "png", "jpeg"])
@@ -193,7 +157,7 @@ if "Vision" in ai_mode_selection:
         st.image(vision_file, width=300)
         base64_img = base64.b64encode(vision_file.getvalue()).decode()
 
-# Chat logic
+# Chat Logic
 client_groq = Groq(api_key=st.secrets["GROQ_API_KEY"])
 user_query = st.chat_input("Ask Alpha...")
 
@@ -203,9 +167,8 @@ if user_query:
         st.markdown(user_query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Alpha is generating response..."):
+        with st.spinner("Alpha is thinking..."):
             if "Vision" in ai_mode_selection:
-                # Meta-llama/llama-4-scout-17b-16e-instruct
                 active_model = "llama-4-scout-17b-16e-instruct"
                 vision_content = [{"type": "text", "text": user_query}]
                 if base64_img:
@@ -217,13 +180,9 @@ if user_query:
                 chat_payload = [{"role": "system", "content": sys_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
             try:
-                response = client_groq.chat.completions.create(
-                    model=active_model,
-                    messages=chat_payload
-                )
-                res_text = response.choices[0].message.content
-                st.markdown(res_text)
-                st.session_state.messages.append({"role": "assistant", "content": res_text})
+                response = client_groq.chat.completions.create(model=active_model, messages=chat_payload)
+                final_answer = response.choices[0].message.content
+                st.markdown(final_answer)
+                st.session_state.messages.append({"role": "assistant", "content": final_answer})
             except Exception as e:
-                st.error(f"Error: {e}")
-             
+                st.error(f"Alpha Brain Sync Error: {e}")
