@@ -185,4 +185,4 @@ if user_query:
                 st.markdown(final_answer)
                 st.session_state.messages.append({"role": "assistant", "content": final_answer})
             except Exception as e:
-                st.error(f"Alpha Brain Sync Error: {e}")
+                st.error(f"Alpha Brain Sync Error: {e}")                          
