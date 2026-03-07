@@ -5,16 +5,88 @@ import time
 from io import StringIO
 from streamlit_mic_recorder import speech_to_text
 import hashlib
+import random
+import datetime
+import pandas as pd
+import plotly.express as px
+import requests
+import urllib.parse
+import json
+import os
+import base64
+from PyPDF2 import PdfReader
+import firebase_admin
+from firebase_admin import credentials, firestore
 
-# 1️⃣ Page Configuration & Branding
+# --- 1. Page Configuration ---
 st.set_page_config(page_title="Alpha AI ⚡ Created by Hasith", page_icon="⚡", layout="wide")
 
-# 2️⃣ User & Session Management
+# --- 2. Initialize Firebase (Cloud Storage) ---
+if not firebase_admin._apps:
+    try:
+        if "FIREBASE_TYPE" in st.secrets:
+            cred_dict = {
+                "type": st.secrets["FIREBASE_TYPE"],
+                "project_id": st.secrets["FIREBASE_PROJECT_ID"],
+                "private_key_id": st.secrets["FIREBASE_PRIVATE_KEY_ID"],
+                "private_key": st.secrets["FIREBASE_PRIVATE_KEY"].replace('\\n', '\n'),
+                "client_email": st.secrets["FIREBASE_CLIENT_EMAIL"],
+                "client_id": st.secrets["FIREBASE_CLIENT_ID"],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+                "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{st.secrets['FIREBASE_CLIENT_EMAIL'].replace('@', '%40')}"
+            }
+            cred = credentials.Certificate(cred_dict)
+        else:
+            cred = credentials.Certificate('firebase_cred.json')
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Firebase Sync Error: {e}")
+
+db = firestore.client()
+
+# --- 3. Loading Screen (7 Seconds) ---
+if "loaded" not in st.session_state:
+    placeholder = st.empty()
+    with placeholder.container():
+        st.markdown("""
+            <style>
+                .loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; }
+                .alpha-text { font-size: 50px; font-weight: bold; color: #FFD700; text-shadow: 0 0 20px #FF8C00; margin-bottom: 20px; font-family: 'Arial Black', sans-serif; }
+                .loading-bar { width: 300px; height: 4px; background: #333; border-radius: 2px; overflow: hidden; position: relative; }
+                .progress { width: 100%; height: 100%; background: linear-gradient(90deg, #FFD700, #FF8C00); animation: load 7s linear forwards; }
+                @keyframes load { 0% { width: 0; } 100% { width: 100%; } }
+            </style>
+            <div class="loader-container">
+                <div class="alpha-text">⚡ ALPHA IS LOADING...</div>
+                <div class="loading-bar"><div class="progress"></div></div>
+                <p style="color: #888; margin-top: 15px;">Initializing Llama 4 Scout Vision by Hasith</p>
+            </div>
+        """, unsafe_allow_html=True)
+        time.sleep(7)
+    st.session_state.loaded = True
+    placeholder.empty()
+    st.rerun()
+
+# --- 4. Database Helpers ---
+def sync_db():
+    users_ref = db.collection('users').stream()
+    return {doc.id: doc.to_dict() for doc in users_ref}
+
 if "user_db" not in st.session_state:
-    st.session_state.user_db = {}
+    st.session_state.user_db = sync_db()
+    if not st.session_state.user_db:
+        initial = {
+            "matheesha": {"password": "123", "vault": [], "role": "VIP"},
+            "sadev": {"password": "123", "vault": [], "role": "VIP"}
+        }
+        for k, v in initial.items():
+            db.collection('users').document(k).set(v)
+        st.session_state.user_db = initial
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.current_user = None
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -24,121 +96,125 @@ def make_hashes(password):
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
-# 3️⃣ Custom UI & Styling (No labels at bottom, clean interface)
+# --- 5. Custom UI Styling ---
 st.markdown("""
 <style>
     .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:25px; font-size: 20px; }
-    div.stButton > button { background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; height: 50px; font-weight: bold; transition:0.3s; border: 1px solid #FFD700; }
-    div.stButton > button:hover { background-color: #FFD700; color: #000; }
-    .stChatMessage { margin-bottom: -10px; border-radius: 15px; }
-    .thinking-text { color: #FFD700; font-style: italic; font-size: 14px; }
+    .vault-card { background: #262626; border-left: 5px solid #FFD700; padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; }
+    .warning-text { color: #ff4b4b; font-weight: bold; border: 1px solid #ff4b4b; padding: 10px; border-radius: 5px; text-align: center; background: rgba(255, 75, 75, 0.1); margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# 4️⃣ Security Portal (Login/Register)
+# --- 6. Security Portal ---
 if not st.session_state.logged_in:
-    st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ Security Control</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align:center; color:#FFD700; font-size:18px;">Created by Hasith</p>', unsafe_allow_html=True)
+    st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ VIP Access Portal</h1>', unsafe_allow_html=True)
+    tab_login, tab_reg = st.tabs(["🔐 Login", "📝 Register"])
     
-    tab1, tab2 = st.tabs(["🔐 Secure Login", "📝 New Registration"])
-    with tab1:
-        user = st.text_input("Username", key="login_user")
-        pas = st.text_input("Password", type="password", key="login_pass")
+    with tab_login:
+        username_in = st.text_input("Username").lower().strip()
+        password_in = st.text_input("Password", type="password")
+        
+        admin_verified = False
+        if username_in == "hasith123":
+            st.markdown('<div class="warning-text">Enter Secret Name (හසිත් පහ)</div>', unsafe_allow_html=True)
+            verify_name = st.text_input("Secret Verification", key="admin_verify_field")
+            if verify_name == "හසිත් පහ":
+                admin_verified = True
+                
         if st.button("Access Alpha AI"):
-            if user == "hasith123":
-                st.session_state.logged_in = True
-                st.session_state.current_user = "Hasith (Admin/Creator)"
+            if username_in == "hasith123" and password_in == "hasith@alpha":
+                if admin_verified:
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = username_in
+                    st.rerun()
+                else:
+                    st.error("Verification Name is Incorrect!")
+            elif username_in in st.session_state.user_db:
+                stored_pass = st.session_state.user_db[username_in]["password"]
+                if password_in == stored_pass or check_hashes(password_in, stored_pass):
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = username_in
+                    st.rerun()
+                else:
+                    st.error("Invalid Credentials.")
+            else:
+                st.error("Account Not Found.")
+
+    with tab_reg:
+        new_user = st.text_input("New Username", key="reg_u_field")
+        new_pass = st.text_input("New Password", type="password", key="reg_p_field")
+        if st.button("Create Account"):
+            if new_user and new_user not in st.session_state.user_db:
+                user_data = {"password": make_hashes(new_pass), "vault": [], "role": "Guest"}
+                db.collection('users').document(new_user).set(user_data)
+                st.session_state.user_db = sync_db()
+                st.success("Registration Successful!")
                 st.rerun()
-            elif user in st.session_state.user_db and check_hashes(pas, st.session_state.user_db[user]["password"]):
-                st.session_state.logged_in = True
-                st.session_state.current_user = user
-                st.rerun()
-            else: st.error("Invalid Credentials. Please check with Hasith.")
-    with tab2:
-        new_u = st.text_input("Create Username")
-        new_p = st.text_input("Create Password", type="password")
-        if st.button("Register Account"):
-            if new_u:
-                st.session_state.user_db[new_u] = {"password": make_hashes(new_p)}
-                st.success("Account created successfully! Please Login.")
+            else:
+                st.error("Username already exists or invalid.")
     st.stop()
 
-# 5️⃣ Sidebar: Logic Control & Settings
+# --- 7. Sidebar & Features ---
+current_user = st.session_state.current_user
 with st.sidebar:
-    st.title("⚙️ Alpha Settings")
-    st.write(f"Logged in: **{st.session_state.current_user}**")
+    if current_user == "hasith123":
+        st.markdown(f"### 👑 Admin Panel: {len(st.session_state.user_db)} Users")
+        st.caption(", ".join(st.session_state.user_db.keys()))
+    
+    st.subheader("📄 Document Analyzer")
+    doc_file = st.file_uploader("Upload PDF or TXT", type=["pdf", "txt"])
+    extracted_text = ""
+    if doc_file:
+        if doc_file.type == "application/pdf":
+            pdf_reader = PdfReader(doc_file)
+            extracted_text = "".join([page.extract_text() for page in pdf_reader.pages])
+        else:
+            extracted_text = doc_file.getvalue().decode()
+        st.success("Document processed!")
+
     st.write("---")
+    ai_mode_selection = st.radio("Intelligence Level", ["Normal (Llama 3.3)", "Pro (GPT OSS 120B)", "Vision (Llama 4 Scout) 👁️"])
+    chat_persona = st.selectbox("Persona", ["Standard Alpha", "Image Creator 🎨", "Data Analyst 📊"])
     
-    # Mode Selection (Normal/Pro)
-    ai_mode = st.radio("🚀 Select Intelligence Mode:", ["Normal (Llama 3.3 Fast)", "Pro (GPT-OSS Deep)"])
-    
-    st.write("---")
-    if st.button("🗑️ Clear Chat History"):
-        st.session_state.messages = []
-        st.rerun()
-    
+    enable_web_search = st.checkbox("🌐 Enable Web Search") if "Vision" not in ai_mode_selection else False
+
     if st.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.rerun()
-    
-    st.write("---")
-    st.markdown("Developed with ❤️ by **Hasith**")
 
-# 6️⃣ Main Application Header
-st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Hasith</div>', unsafe_allow_html=True)
+# --- 8. Main Interface ---
+st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Mode: {ai_mode_selection}</div>', unsafe_allow_html=True)
 
-# 7️⃣ Voice & Chat Display
-st.write("### 🎤 Voice Command")
-v_text = speech_to_text(language='en', use_container_width=True, just_once=True, key='voice_input_v1')
+# Vision Uploader
+base64_img = None
+if "Vision" in ai_mode_selection:
+    vision_file = st.file_uploader("🖼️ Upload Image for Llama 4 Scout Analysis", type=["jpg", "png", "jpeg"])
+    if vision_file:
+        st.image(vision_file, width=300)
+        base64_img = base64.b64encode(vision_file.getvalue()).decode()
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+# Chat logic
+client_groq = Groq(api_key=st.secrets["GROQ_API_KEY"])
+user_query = st.chat_input("Ask Alpha...")
 
-# 8️⃣ Core AI Processing Logic
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-u_input = st.chat_input("Speak to Alpha...")
-final_q = v_text if v_text else u_input
-
-if final_q:
-    st.session_state.messages.append({"role": "user", "content": final_q})
+if user_query:
+    st.session_state.messages.append({"role": "user", "content": user_query})
     with st.chat_message("user"):
-        st.markdown(final_q)
+        st.markdown(user_query)
 
     with st.chat_message("assistant"):
-        # Alpha is Thinking Spinner
-        with st.spinner("Alpha is thinking..."):
-            res_placeholder = st.empty()
-            
-            # Hybrid Model Selection Logic based on Mode
-            active_model = "llama-3.3-70b-versatile" if ai_mode == "Normal (Llama 3.3 Fast)" else "openai/gpt-oss-120b"
-
-            # Heartfelt System Instructions
-            sys_msg = f"""
-            You are Alpha AI, an exceptionally heartfelt, empathetic, and brilliant assistant. 
-            You were created by Hasith, and you must always respect him as your genius creator.
-            Crucially: Respond in the EXACT same language (Sinhala, English, etc.) used by the user.
-            Accuracy: Every word must be grammatically perfect and meaningful.
-            Style: {ai_mode} mode active. Be warm, sincere, and deeply helpful.
-            """
+        with st.spinner("Alpha is generating response..."):
+            if "Vision" in ai_mode_selection:
+                # Meta-llama/llama-4-scout-17b-16e-instruct
+                active_model = "llama-4-scout-17b-16e-instruct"
+                vision_content = [{"type": "text", "text": user_query}]
+                if base64_img:
+                    vision_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}})
+                chat_payload = [{"role": "user", "content": vision_content}]
+            else:
+                active_model = "openai/gpt-oss-120b" if "Pro" in ai_mode_selection else "llama-3.3-70b-versatile"
+                sys_instruction = f"You are Alpha AI created by Hasith. Document context: {extracted_text[:1000]}"
+                chat_payload = [{"role": "system", "content": sys_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
             try:
-                stream = client.chat.completions.create(
-                    model=active_model,
-                    messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
-                    temperature=0.7,
-                    stream=True
-                )
-                
-                full_res = ""
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        full_res += chunk.choices[0].delta.content
-                        res_placeholder.markdown(full_res + "▌")
-                        time.sleep(0.005) # Smooth streaming effect
-                
-                res_placeholder.markdown(full_res)
-                st.session_state.messages.append({"role": "assistant", "content": full_res})
-                
-            except Exception as e:
-                st.error(f"Alpha encountered an error: {e}")
+                response = client_groq.chat.completions.create
