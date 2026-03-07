@@ -5,4 +5,3 @@ pandas
 plotly
 requests
 PyPDF2
-firebase-admin
