@@ -216,21 +216,14 @@ if user_query:
                 sys_instruction = f"You are Alpha AI created by Hasith. Document context: {extracted_text[:1000]}"
                 chat_payload = [{"role": "system", "content": sys_instruction}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
-                        try:
+            try:
                 response = client_groq.chat.completions.create(
                     model=active_model,
                     messages=chat_payload
                 )
-                
-                answer = response.choices[0].message.content
-                st.markdown(answer)
-                st.session_state.messages.append({"role": "assistant", "content": answer})
-                
+                res_text = response.choices[0].message.content
+                st.markdown(res_text)
+                st.session_state.messages.append({"role": "assistant", "content": res_text})
             except Exception as e:
-                st.error(f"Alpha Engine Error: {e}")
-
-# --- 9. Data Analysis/Visuals (Optional Sidebar Trigger) ---
-if chat_persona == "Data Analyst 📊" and user_query:
-    st.sidebar.subheader("Quick Insights")
-    # Example logic for data-heavy responses
-    st.sidebar.info("Data analysis mode is active for this session.")
+                st.error(f"Error: {e}")
+             
