@@ -1,40 +1,56 @@
 import streamlit as st
 from groq import Groq
-import sys
 import time
-from io import StringIO
-from streamlit_mic_recorder import speech_to_text
 import hashlib
-import random
-import datetime
-import pandas as pd
-import plotly.express as px
 import requests
-import urllib.parse
 import json
-import os
 import base64
+import asyncio
+import edge_tts
+import os
 from PyPDF2 import PdfReader
 
-# --- 1. Page Configuration ---
-st.set_page_config(page_title="Alpha AI ⚡ Created by Hasith", page_icon="⚡", layout="wide")
+# --- 1. Page Configuration (KITT Theme) ---
+st.set_page_config(page_title="KITT 🏎️ Created by Hasith", page_icon="🏎️", layout="wide")
 
-# --- 2. Loading Screen (7 Seconds) ---
+# --- 2. KITT Scanner Sound & Voice Functions ---
+def play_kitt_scanner():
+    """Plays the iconic KITT 'WVV WVV' scanner sound before speaking."""
+    if os.path.exists("scanner.mp3"):
+        with open("scanner.mp3", "rb") as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
+
+async def kitt_speak(text):
+    """Generates a deep, sophisticated male voice using Edge-TTS."""
+    VOICE = "en-IE-ConnorNeural" # Deep, calm male voice suitable for KITT
+    communicate = edge_tts.Communicate(text, VOICE)
+    audio_data = b""
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_data += chunk["data"]
+    
+    b64 = base64.b64encode(audio_data).decode()
+    md = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">'
+    st.markdown(md, unsafe_allow_html=True)
+
+# --- 3. KITT Loading Screen (7 Seconds) ---
 if "loaded" not in st.session_state:
     placeholder = st.empty()
     with placeholder.container():
         st.markdown("""
             <style>
-                .loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; }
-                .alpha-text { font-size: 50px; font-weight: bold; color: #FFD700; text-shadow: 0 0 20px #FF8C00; margin-bottom: 20px; font-family: 'Arial Black', sans-serif; }
-                .loading-bar { width: 300px; height: 4px; background: #333; border-radius: 2px; overflow: hidden; position: relative; }
-                .progress { width: 100%; height: 100%; background: linear-gradient(90deg, #FFD700, #FF8C00); animation: load 7s linear forwards; }
-                @keyframes load { 0% { width: 0; } 100% { width: 100%; } }
+                .loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; background-color: #000; }
+                .kitt-text { font-size: 50px; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; font-family: 'Courier New', monospace; }
+                .scanner-bar { width: 300px; height: 10px; background: #333; position: relative; border-radius: 5px; overflow: hidden; border: 1px solid #444; }
+                .scanner-light { width: 60px; height: 100%; background: red; box-shadow: 0 0 20px red; position: absolute; animation: scan 1.5s infinite ease-in-out; }
+                @keyframes scan { 0% { left: -60px; } 50% { left: 240px; } 100% { left: -60px; } }
             </style>
             <div class="loader-container">
-                <div class="alpha-text">⚡ ALPHA IS LOADING...</div>
-                <div class="loading-bar"><div class="progress"></div></div>
-                <p style="color: #888; margin-top: 15px;">Initializing Llama 4 Scout Vision by Hasith</p>
+                <div class="kitt-text">🏎️ KITT INITIALIZING...</div>
+                <div class="scanner-bar"><div class="scanner-light"></div></div>
+                <p style="color: #666; margin-top: 15px;">Knight Industries Two Thousand | Authorized Access: Hasith</p>
             </div>
         """, unsafe_allow_html=True)
         time.sleep(7)
@@ -42,98 +58,42 @@ if "loaded" not in st.session_state:
     placeholder.empty()
     st.rerun()
 
-# --- 3. Session State Initialization ---
-if "user_db" not in st.session_state:
-    st.session_state.user_db = {
-        "matheesha": {"password": "123", "vault": [], "role": "VIP"},
-        "sadev": {"password": "123", "vault": [], "role": "VIP"}
-    }
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
-
-# --- 4. Custom UI Styling ---
+# --- 4. Custom UI Styling (KITT Red & Black) ---
 st.markdown("""
 <style>
-    .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:25px; font-size: 20px; }
-    .vault-card { background: #262626; border-left: 5px solid #FFD700; padding: 10px; border-radius: 5px; margin-bottom: 5px; font-size: 13px; }
-    .warning-text { color: #ff4b4b; font-weight: bold; border: 1px solid #ff4b4b; padding: 10px; border-radius: 5px; text-align: center; background: rgba(255, 75, 75, 0.1); margin-bottom: 15px; }
-    .bypass-text { color: #FFD700; font-weight: bold; font-size: 14px; text-align: center; margin-bottom: 10px; }
+    .stApp { background-color: #000; color: #fff; }
+    .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #8B0000, #FF0000); color:#fff; border-radius:15px; text-align:center; font-weight:bold; box-shadow: 0 0 15px #FF0000; margin-bottom: 25px; }
+    .stTextInput>div>div>input { background-color: #111; color: #FF0000; border: 1px solid #FF0000; }
+    .stButton>button { background-color: #8B0000; color: white; border-radius: 10px; border: none; width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 5. Security Portal with Creator Bypass ---
-if not st.session_state.logged_in:
-    st.markdown('<h1 style="text-align:center;">Alpha AI ⚡ Access Portal</h1>', unsafe_allow_html=True)
-    
-    # Adding the requested Bypass Tab
-    tab_login, tab_reg, tab_bypass = st.tabs(["🔐 Login", "📝 Register", "⚡ Creator & His Friends Bypass"])
-    
-    with tab_login:
-        username_in = st.text_input("Username").lower().strip()
-        password_in = st.text_input("Password", type="password")
-        
-        admin_verified = False
-        if username_in == "hasith123":
-            st.markdown('<div class="warning-text">Enter Secret Name (හසිත් පහ)</div>', unsafe_allow_html=True)
-            verify_name = st.text_input("Secret Verification", key="admin_login_verify")
-            if verify_name == "හසිත් පහ":
-                admin_verified = True
-                
-        if st.button("Access Alpha"):
-            if username_in == "hasith123" and password_in == "hasith@alpha":
-                if admin_verified:
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = username_in
-                    st.rerun()
-                else:
-                    st.error("Verification Name is Incorrect!")
-            elif username_in in st.session_state.user_db:
-                stored_pass = st.session_state.user_db[username_in]["password"]
-                if password_in == stored_pass or check_hashes(password_in, stored_pass):
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = username_in
-                    st.rerun()
-                else:
-                    st.error("Invalid Credentials.")
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-    with tab_reg:
-        new_user = st.text_input("New Username", key="reg_u")
-        new_pass = st.text_input("New Password", type="password", key="reg_p")
-        if st.button("Create Account"):
-            if new_user and new_user not in st.session_state.user_db:
-                st.session_state.user_db[new_user] = {"password": make_hashes(new_pass), "vault": [], "role": "Guest"}
-                st.success("Account Created!"); st.rerun()
-                
-    with tab_bypass:
-        st.markdown('<div class="bypass-text">⚡ Creator Exclusive Unlock</div>', unsafe_allow_html=True)
-        bypass_username = st.text_input("Enter Bypass Username", key="bypass_field").strip()
-        
-        if st.button("Unlock Alpha"):
-            if bypass_username == "Hasith12378":
-                st.session_state.logged_in = True
-                st.session_state.current_user = "hasith123" # Login as Admin
-                st.success("Creator Verified! Welcome Hasith.")
-                st.rerun()
-            else:
-                st.error("Unauthorized Username! Only Hasith12378 is allowed.")
+if not st.session_state.logged_in:
+    st.markdown('<h1 style="text-align:center; color:red;">KITT 🏎️ ACCESS PORTAL</h1>', unsafe_allow_html=True)
+    bypass_username = st.text_input("Enter Bypass ID (Hasith12378)", key="bypass_field").strip()
+    
+    if st.button("Activate KITT"):
+        if bypass_username == "Hasith12378":
+            st.session_state.logged_in = True
+            st.session_state.current_user = "Hasith"
+            st.rerun()
+        else:
+            st.error("Unauthorized Access! Access Denied.")
     st.stop()
 
-# --- 6. Main App (Unchanged Logic) ---
-current_user = st.session_state.current_user
+# --- 6. Main Dashboard Logic ---
 with st.sidebar:
-    if current_user == "hasith123":
-        st.markdown(f"### 👑 Admin: {len(st.session_state.user_db)} Users")
+    st.image("https://img.icons8.com/ios-filled/100/ff0000/car.png")
+    st.subheader("System Diagnostics")
+    ai_mode = st.radio("Intelligence Processor", ["Normal (Llama 3.3)", "Pro (GPT OSS 120B)"])
     
-    st.subheader("📄 Document Analyzer")
-    doc_file = st.file_uploader("Upload PDF/TXT", type=["pdf", "txt"])
+    st.write("---")
+    st.subheader("Document Uplink")
+    doc_file = st.file_uploader("Upload Data Files", type=["pdf", "txt"])
     extracted_text = ""
     if doc_file:
         if doc_file.type == "application/pdf":
@@ -142,48 +102,42 @@ with st.sidebar:
         else:
             extracted_text = doc_file.getvalue().decode()
 
-    st.write("---")
-    ai_mode_selection = st.radio("Intelligence Level", ["Normal (Llama 3.3)", "Pro (GPT OSS 120B)", "Vision (Llama 4 Scout) 👁️"])
-    chat_persona = st.selectbox("Persona", ["Standard Alpha", "Image Creator 🎨", "Data Analyst 📊"])
-    enable_web_search = st.checkbox("🌐 Enable Web Search") if "Vision" not in ai_mode_selection else False
-
-    if st.button("🚪 Logout"):
+    if st.button("Shut Down System"):
         st.session_state.logged_in = False
         st.rerun()
 
-st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Mode: {ai_mode_selection}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="premium-banner">🏎️ KITT CORE OPERATIONAL | Hasith, I am ready for your commands.</div>', unsafe_allow_html=True)
 
-base64_img = None
-if "Vision" in ai_mode_selection:
-    vision_file = st.file_uploader("🖼️ Upload Image for Analysis", type=["jpg", "png", "jpeg"])
-    if vision_file:
-        st.image(vision_file, width=300)
-        base64_img = base64.b64encode(vision_file.getvalue()).decode()
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for m in st.session_state.messages:
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
 client_groq = Groq(api_key=st.secrets["GROQ_API_KEY"])
-user_query = st.chat_input("Ask Alpha...")
+user_query = st.chat_input("State your command, Hasith...")
 
 if user_query:
     st.session_state.messages.append({"role": "user", "content": user_query})
     with st.chat_message("user"): st.markdown(user_query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Alpha is thinking..."):
-            if "Vision" in ai_mode_selection:
-                active_model = "llama-4-scout-17b-16e-instruct"
-                v_content = [{"type": "text", "text": user_query}]
-                if base64_img:
-                    v_content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}})
-                chat_payload = [{"role": "user", "content": v_content}]
-            else:
-                active_model = "openai/gpt-oss-120b" if "Pro" in ai_mode_selection else "llama-3.3-70b-versatile"
-                sys_inst = f"You are Alpha AI by Hasith. Document context: {extracted_text[:1000]}"
-                chat_payload = [{"role": "system", "content": sys_inst}] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
+        with st.spinner("Processing data, Hasith..."):
+            active_model = "openai/gpt-oss-120b" if "Pro" in ai_mode else "llama-3.3-70b-versatile"
+            sys_inst = f"You are KITT, the advanced AI car from Knight Rider. You are loyal, professional, and dry-witted. Always call the user 'Hasith'. Context: {extracted_text[:1000]}"
+            
+            chat_payload = [{"role": "system", "content": sys_inst}] + st.session_state.messages[-5:]
 
             try:
                 response = client_groq.chat.completions.create(model=active_model, messages=chat_payload)
                 ans = response.choices[0].message.content
+                
+                # Execution Sequence: Scanner Sound -> Show Text -> Deep Voice
+                play_kitt_scanner()
+                time.sleep(0.5)
                 st.markdown(ans)
+                asyncio.run(kitt_speak(ans))
+                
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"System Malfunction: {e}")
