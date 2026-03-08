@@ -1,7 +1,8 @@
 streamlit
 groq
-streamlit-mic-recorder
+edge-tts
+PyPDF2
+requests
 pandas
 plotly
-requests
-PyPDF2
+pygame
