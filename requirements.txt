@@ -1,4 +1,5 @@
 streamlit
+bcrypt
 groq
 edge-tts
 PyPDF2
