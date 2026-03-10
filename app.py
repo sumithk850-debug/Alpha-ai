@@ -5,6 +5,8 @@ import base64
 import asyncio
 import edge_tts
 import os
+import speech_recognition as sr
+import webbrowser
 from PyPDF2 import PdfReader
 
 # --- 1. Page Configuration & Cyber UI ---
@@ -14,9 +16,8 @@ st.markdown("""
     <style>
     .stApp { background: #02050a; color: #ffffff; font-family: 'Inter', sans-serif; }
     
-    /* Neon Glow Title for Alpha AI */
     .alpha-neon-title {
-        font-size: clamp(2.5em, 8vw, 4em); /* Responsive font size */
+        font-size: clamp(2.5em, 8vw, 4em);
         font-weight: 900;
         text-align: center;
         color: #fff;
@@ -53,7 +54,6 @@ st.markdown("""
         text-align: center;
     }
 
-    /* 📱 Enhanced Loading Screen for Mobile */
     .loader-container {
         display: flex;
         flex-direction: column;
@@ -68,10 +68,8 @@ st.markdown("""
         margin-top: 30px; 
         letter-spacing: clamp(8px, 4vw, 15px); 
         font-weight: bold;
-        padding-left: 15px; /* Shifts text slightly to the right */
         text-align: center;
         font-size: clamp(1.5em, 6vw, 2.5em);
-        text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
     }
 
     .pulse-ring {
@@ -79,7 +77,6 @@ st.markdown("""
         border: 4px solid #00d4ff;
         border-radius: 50%;
         animation: ring-pulse 1.5s infinite ease-out;
-        box-shadow: 0 0 20px #00d4ff;
     }
     @keyframes ring-pulse {
         0% { transform: scale(0.6); opacity: 1; }
@@ -88,7 +85,45 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. Advanced Audio & Logic Functions ---
+# --- 2. Mobile OS Controller Logic ---
+def execute_mobile_command(text):
+    cmd = text.lower()
+    # Mobile App Deep Linking
+    if "open youtube" in cmd:
+        webbrowser.open("https://www.youtube.com") # Works on both Mobile & PC
+        return "Initiating YouTube streaming interface, Hasith."
+    elif "open maps" in cmd:
+        webbrowser.open("https://maps.google.com")
+        return "Accessing satellite navigation core, Hasith."
+    elif "open whatsapp" in cmd:
+        webbrowser.open("https://wa.me/")
+        return "Connecting to secure communication relay."
+    elif "open mail" in cmd or "open gmail" in cmd:
+        webbrowser.open("mailto:")
+        return "Opening secure mailing terminal."
+    elif "search" in cmd:
+        query = cmd.replace("search", "").strip()
+        webbrowser.open(f"https://www.google.com/search?q={query}")
+        return f"Retrieving data for: {query}."
+    return None
+
+# --- 3. Speech Recognition Engine ---
+def listen_voice():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        recognizer.adjust_for_ambient_noise(source, duration=0.8)
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            # Tries Sinhala first, falls back to English
+            try:
+                text = recognizer.recognize_google(audio, language="si-LK")
+            except:
+                text = recognizer.recognize_google(audio, language="en-US")
+            return text
+        except:
+            return ""
+
+# --- 4. Alpha Audio & Logic Functions ---
 async def speak_alpha(text):
     VOICE = "en-US-SteffanNeural"
     communicate = edge_tts.Communicate(text, VOICE)
@@ -105,10 +140,10 @@ def type_effect(text, container):
     for char in text:
         full += char
         container.markdown(f"<div style='font-size:1.1em; line-height:1.6;'>{full} ⚡</div>", unsafe_allow_html=True)
-        time.sleep(0.02)
+        time.sleep(0.01)
     container.markdown(full)
 
-# --- 3. Alpha Loading Screen ---
+# --- 5. Initializing Sequence ---
 if "loaded" not in st.session_state:
     l_box = st.empty()
     with l_box.container():
@@ -116,14 +151,14 @@ if "loaded" not in st.session_state:
             <div class="loader-container">
                 <div class="pulse-ring"></div>
                 <div class="alpha-load-text">ALPHA AI</div>
-                <p style="color:#444; font-size:10px; margin-top:10px; letter-spacing:2px;">INITIALIZING QUANTUM CORE</p>
+                <p style="color:#00d4ff; font-size:10px; margin-top:10px; letter-spacing:3px;">CALIBRATING QUANTUM CORE</p>
             </div>
         """, unsafe_allow_html=True)
-        time.sleep(5)
+        time.sleep(4)
     st.session_state.loaded = True
     st.rerun()
 
-# --- 4. Restored Security System ---
+# --- 6. Security System ---
 if "user_db" not in st.session_state: st.session_state.user_db = {"matheesha": "123", "sadev": "123"}
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 
@@ -149,7 +184,7 @@ if not st.session_state.logged_in:
                 st.rerun()
     st.stop()
 
-# --- 5. Alpha Dashboard ---
+# --- 7. Alpha Dashboard ---
 with st.sidebar:
     st.markdown(f"""
         <div class="hasith-badge">
@@ -158,54 +193,52 @@ with st.sidebar:
         </div>
     """, unsafe_allow_html=True)
     st.write("---")
+    
+    if st.button("🎙️ VOICE COMMAND"):
+        with st.spinner("Listening..."):
+            v_input = listen_voice()
+            if v_input:
+                st.session_state.voice_data = v_input
+                st.rerun()
+
     mode = st.radio("Processor Unit", ["Llama 3.3 (Normal)", "GPT OSS 120B (Pro)"])
     st.write("---")
     doc = st.file_uploader("Data Linkage", type=["pdf", "txt"])
-    extracted = ""
-    if doc:
-        if doc.type == "application/pdf":
-            reader = PdfReader(doc); extracted = "".join([p.extract_text() for p in reader.pages])
-        else: extracted = doc.getvalue().decode()
     if st.button("🔌 Disconnect"): st.session_state.logged_in = False; st.rerun()
 
 st.markdown('<div class="alpha-neon-title">ALPHA AI</div>', unsafe_allow_html=True)
-
-summary_placeholder = st.empty()
-if "messages" not in st.session_state or len(st.session_state.messages) == 0:
-    summary_placeholder.markdown(f"""
-        <div class="glass-card">
-            <h3 style="color:#00d4ff; margin:0;">💠 SYSTEM CAPABILITIES</h3>
-            <div class="status-capsule">
-                • <b>LLM CORES:</b> Llama 3.3 & GPT OSS-120B Integration.<br>
-                • <b>DEVELOPER:</b> Designed and Optimized by <b>Hasith</b>.<br>
-                • <b>STATUS:</b> All quantum circuits operational.
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
 
 if "messages" not in st.session_state: st.session_state.messages = []
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 user_input = st.chat_input("State command, Hasith...")
+if "voice_data" in st.session_state:
+    user_input = st.session_state.voice_data
+    del st.session_state.voice_data
+
 if user_input:
-    summary_placeholder.empty()
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
 
     with st.chat_message("assistant"):
         text_target = st.empty()
-        with st.spinner("Alpha is thinking..."):
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            model_engine = "openai/gpt-oss-120b" if "Pro" in mode else "llama-3.3-70b-versatile"
-            response = client.chat.completions.create(
-                model=model_engine,
-                messages=[{"role":"system","content":"You are Alpha AI. Professional and advanced. Address user as Hasith."}] + st.session_state.messages[-5:]
-            )
-            ans = response.choices[0].message.content
+        
+        # OS Control Logic
+        mobile_msg = execute_mobile_command(user_input)
+        
+        if mobile_msg:
+            ans = mobile_msg
+        else:
+            with st.spinner("Thinking..."):
+                client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+                model_engine = "openai/gpt-oss-120b" if "Pro" in mode else "llama-3.3-70b-versatile"
+                response = client.chat.completions.create(
+                    model=model_engine,
+                    messages=[{"role":"system","content":"You are Alpha AI. Professional. Address user as Hasith. You can trigger mobile system apps."}] + st.session_state.messages[-5:]
+                )
+                ans = response.choices[0].message.content
             
-            dur = asyncio.run(speak_alpha(ans))
-            type_effect(ans, text_target)
-            
-            time.sleep(max(0, dur - (len(ans) * 0.02)))
-            st.session_state.messages.append({"role": "assistant", "content": ans})
+        dur = asyncio.run(speak_alpha(ans))
+        type_effect(ans, text_target)
+        st.session_state.messages.append({"role": "assistant", "content": ans})
