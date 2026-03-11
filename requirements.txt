@@ -1,12 +1,6 @@
 streamlit
-bcrypt
 groq
 edge-tts
-PyPDF2
-requests
-pandas
-plotly
-pygame
 SpeechRecognition
+PyPDF2
 PyAudio
-pyautogui
