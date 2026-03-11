@@ -7,3 +7,6 @@ requests
 pandas
 plotly
 pygame
+SpeechRecognition
+PyAudio
+pyautogui
