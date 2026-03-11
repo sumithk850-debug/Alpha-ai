@@ -23,7 +23,7 @@ st.markdown("""
         color: #fff;
         text-shadow: 0 0 10px #00d4ff, 0 0 20px #00d4ff, 0 0 40px #00d4ff;
         letter-spacing: clamp(5px, 3vw, 12px);
-        margin-bottom: 5px;
+        margin-bottom: 10px;
         font-family: 'Orbitron', sans-serif;
     }
     
@@ -34,16 +34,6 @@ st.markdown("""
         padding: 20px;
         border-radius: 20px;
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
-        margin-bottom: 20px;
-    }
-
-    .status-capsule {
-        background: rgba(0, 0, 0, 0.6);
-        border-left: 5px solid #00d4ff;
-        padding: 12px;
-        border-radius: 10px;
-        font-size: 0.9em;
-        color: #00d4ff;
     }
 
     .hasith-badge {
@@ -54,6 +44,7 @@ st.markdown("""
         text-align: center;
     }
 
+    /* Neural Pulse Loader */
     .loader-container {
         display: flex;
         flex-direction: column;
@@ -62,16 +53,15 @@ st.markdown("""
         height: 80vh;
         width: 100%;
     }
-    
     .alpha-load-text {
         color: #00d4ff; 
         margin-top: 30px; 
         letter-spacing: clamp(8px, 4vw, 15px); 
+        padding-left: 15px;
         font-weight: bold;
         text-align: center;
         font-size: clamp(1.5em, 6vw, 2.5em);
     }
-
     .pulse-ring {
         width: 80px; height: 80px;
         border: 4px solid #00d4ff;
@@ -85,21 +75,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. Mobile OS Controller Logic ---
+# --- 2. Mobile & Web OS Controller Logic ---
 def execute_mobile_command(text):
     cmd = text.lower()
-    # Mobile App Deep Linking
     if "open youtube" in cmd:
-        webbrowser.open("https://www.youtube.com") # Works on both Mobile & PC
-        return "Initiating YouTube streaming interface, Hasith."
+        webbrowser.open("https://www.youtube.com")
+        return "Initiating YouTube interface, Hasith."
     elif "open maps" in cmd:
         webbrowser.open("https://maps.google.com")
         return "Accessing satellite navigation core, Hasith."
     elif "open whatsapp" in cmd:
-        webbrowser.open("https://wa.me/")
-        return "Connecting to secure communication relay."
+        webbrowser.open("https://web.whatsapp.com")
+        return "Connecting to communication relay."
     elif "open mail" in cmd or "open gmail" in cmd:
-        webbrowser.open("mailto:")
+        webbrowser.open("https://mail.google.com")
         return "Opening secure mailing terminal."
     elif "search" in cmd:
         query = cmd.replace("search", "").strip()
@@ -114,11 +103,8 @@ def listen_voice():
         recognizer.adjust_for_ambient_noise(source, duration=0.8)
         try:
             audio = recognizer.listen(source, timeout=5)
-            # Tries Sinhala first, falls back to English
-            try:
-                text = recognizer.recognize_google(audio, language="si-LK")
-            except:
-                text = recognizer.recognize_google(audio, language="en-US")
+            # Try English (US) as primary for commands
+            text = recognizer.recognize_google(audio, language="en-US")
             return text
         except:
             return ""
@@ -151,7 +137,7 @@ if "loaded" not in st.session_state:
             <div class="loader-container">
                 <div class="pulse-ring"></div>
                 <div class="alpha-load-text">ALPHA AI</div>
-                <p style="color:#00d4ff; font-size:10px; margin-top:10px; letter-spacing:3px;">CALIBRATING QUANTUM CORE</p>
+                <p style="color:#00d4ff; font-size:10px; margin-top:10px; letter-spacing:3px;">CALIBRATING QUANTUM CORE | CREATOR: HASITH</p>
             </div>
         """, unsafe_allow_html=True)
         time.sleep(4)
@@ -204,11 +190,26 @@ with st.sidebar:
     mode = st.radio("Processor Unit", ["Llama 3.3 (Normal)", "GPT OSS 120B (Pro)"])
     st.write("---")
     doc = st.file_uploader("Data Linkage", type=["pdf", "txt"])
+    extracted = ""
+    if doc:
+        if doc.type == "application/pdf":
+            reader = PdfReader(doc); extracted = "".join([p.extract_text() for p in reader.pages])
+        else: extracted = doc.getvalue().decode()
+        
     if st.button("🔌 Disconnect"): st.session_state.logged_in = False; st.rerun()
 
 st.markdown('<div class="alpha-neon-title">ALPHA AI</div>', unsafe_allow_html=True)
 
 if "messages" not in st.session_state: st.session_state.messages = []
+
+# Status Summary (Hides after first message)
+summary_ph = st.empty()
+if len(st.session_state.messages) == 0:
+    summary_ph.markdown("""<div class="glass-card">
+        <h3 style="color:#00d4ff; margin:0;">💠 SYSTEM CAPABILITIES</h3>
+        <p style='color:#888;'>Voice Commands, OS Control, and Neural Reasoning Active.<br>Ready, Hasith.</p>
+    </div>""", unsafe_allow_html=True)
+
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -218,6 +219,7 @@ if "voice_data" in st.session_state:
     del st.session_state.voice_data
 
 if user_input:
+    summary_ph.empty()
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
 
@@ -230,12 +232,12 @@ if user_input:
         if mobile_msg:
             ans = mobile_msg
         else:
-            with st.spinner("Thinking..."):
+            with st.spinner("Alpha is thinking..."):
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
                 model_engine = "openai/gpt-oss-120b" if "Pro" in mode else "llama-3.3-70b-versatile"
                 response = client.chat.completions.create(
                     model=model_engine,
-                    messages=[{"role":"system","content":"You are Alpha AI. Professional. Address user as Hasith. You can trigger mobile system apps."}] + st.session_state.messages[-5:]
+                    messages=[{"role":"system","content":f"You are Alpha AI. Professional. Developed by Hasith. Address user as Hasith. Data: {extracted[:200]}"}] + st.session_state.messages[-5:]
                 )
                 ans = response.choices[0].message.content
             
