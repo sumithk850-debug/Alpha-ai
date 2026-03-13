@@ -1,147 +1,207 @@
 import streamlit as st
 from groq import Groq
-import time
-import base64
-import asyncio
+import time, base64, asyncio, requests, webbrowser, json, os
 import edge_tts
-import os
-import webbrowser
 from PyPDF2 import PdfReader
+from bs4 import BeautifulSoup
+from streamlit_mic_recorder import mic_recorder
+from email_validator import validate_email
+import streamlit.components.v1 as components
 
-# --- 1. Page Configuration & Cyber UI (Hasith's Original Style) ---
-st.set_page_config(page_title="Alpha AI | Next-Gen", page_icon="⚡", layout="wide")
+# -----------------------
+# PAGE CONFIG
+# -----------------------
+st.set_page_config(page_title="Alpha AI | Jarvis v4", page_icon="⚡", layout="wide")
 
-st.markdown("""
-    <style>
-    .stApp { background: #02050a; color: #ffffff; font-family: 'Inter', sans-serif; }
-    .alpha-neon-title {
-        font-size: clamp(2.5em, 8vw, 4em);
-        font-weight: 900;
-        text-align: center;
-        color: #fff;
-        text-shadow: 0 0 10px #00d4ff, 0 0 20px #00d4ff, 0 0 40px #00d4ff;
-        letter-spacing: clamp(5px, 3vw, 12px);
-        font-family: 'Orbitron', sans-serif;
-    }
-    .glass-card {
-        background: rgba(0, 212, 255, 0.05);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 212, 255, 0.2);
-        padding: 20px;
-        border-radius: 20px;
-        margin-bottom: 20px;
-    }
-    .hasith-badge {
-        background: linear-gradient(135deg, #001f3f, #0074d9);
-        padding: 15px;
-        border-radius: 15px;
-        border: 1px solid #00d4ff;
-        text-align: center;
-    }
-    .loader-container {
-        display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh;
-    }
-    .alpha-load-text {
-        color: #00d4ff; margin-top: 30px; letter-spacing: clamp(8px, 4vw, 15px); font-weight: bold; font-size: clamp(1.5em, 6vw, 2.5em);
-    }
-    .pulse-ring {
-        width: 80px; height: 80px; border: 4px solid #00d4ff; border-radius: 50%; animation: ring-pulse 1.5s infinite ease-out;
-    }
-    @keyframes ring-pulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
-    </style>
-""", unsafe_allow_html=True)
+# -----------------------
+# COOKIE LOGIN SYSTEM
+# -----------------------
+COOKIE_FILE = "alpha_user.json"
 
-# --- 2. OS & Web Controller Logic ---
-def execute_system_command(command):
-    cmd = command.lower()
-    # YouTube Automation
-    if "youtube" in cmd and "search" in cmd:
-        query = cmd.split("search")[-1].replace("for", "").strip()
-        webbrowser.open(f"https://www.youtube.com/results?search_query={query}")
-        return f"හසීත්, මම YouTube හි {query} සෙව්වා. දැන් ඔබට වීඩියෝව තෝරාගත හැකියි."
-    
-    # Navigation
-    elif "open maps" in cmd or "location" in cmd:
-        webbrowser.open("https://www.google.com/maps")
-        return "GPS පද්ධතිය සහ සිතියම් විවෘත කළා, හසීත්."
+def save_user(user):
+    with open(COOKIE_FILE,"w") as f:
+        json.dump(user,f)
 
-    # Communication
-    elif "open whatsapp" in cmd:
-        webbrowser.open("https://web.whatsapp.com")
-        return "WhatsApp පණිවිඩ පද්ධතිය සක්‍රීය කළා."
-
-    # Google Search
-    elif "search for" in cmd:
-        query = cmd.split("search for")[-1].strip()
-        webbrowser.open(f"https://www.google.com/search?q={query}")
-        return f"මම Google හරහා {query} ගැන තොරතුරු සෙව්වා."
-
+def load_user():
+    if os.path.exists(COOKIE_FILE):
+        with open(COOKIE_FILE) as f:
+            return json.load(f)
     return None
 
-# --- 3. Core Functions ---
-async def speak_alpha(text):
-    VOICE = "en-US-SteffanNeural"
-    communicate = edge_tts.Communicate(text, VOICE)
-    audio_data = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio": audio_data += chunk["data"]
-    b64 = base64.b64encode(audio_data).decode()
-    st.markdown(f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
-    return len(audio_data) / 15500
+def logout():
+    if os.path.exists(COOKIE_FILE):
+        os.remove(COOKIE_FILE)
+    st.session_state.logged_in=False
 
-def type_effect(text, container):
-    full = ""
-    for char in text:
-        full += char
-        container.markdown(f"<div style='font-size:1.1em;'>{full} ⚡</div>", unsafe_allow_html=True)
-        time.sleep(0.01)
-    container.markdown(text)
+saved_user = load_user()
 
-# --- 4. Initialization & Security ---
-if "loaded" not in st.session_state:
-    with st.empty().container():
-        st.markdown('<div class="loader-container"><div class="pulse-ring"></div><div class="alpha-load-text">ALPHA AI</div></div>', unsafe_allow_html=True)
-        time.sleep(4)
-    st.session_state.loaded = True; st.rerun()
+# -----------------------
+# SESSION STATE
+# -----------------------
+if "messages" not in st.session_state:
+    st.session_state.messages=[]
 
-if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "memory" not in st.session_state:
+    st.session_state.memory=[]
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in=False
+
+if "user_full_name" not in st.session_state:
+    st.session_state.user_full_name=None
+
+# AUTO LOGIN
+if saved_user:
+    st.session_state.logged_in=True
+    st.session_state.user_full_name=saved_user["name"]
+
+# -----------------------
+# LOGIN PAGE
+# -----------------------
 if not st.session_state.logged_in:
-    st.markdown('<div class="alpha-neon-title">ALPHA CORE</div>', unsafe_allow_html=True)
-    bypass = st.text_input("Master Key", type="password")
-    if st.button("Unlock Alpha"):
-        if bypass == "Hasith12378": st.session_state.logged_in = True; st.rerun()
+
+    st.title("⚡ ALPHA CORE LOGIN")
+
+    name = st.text_input("Name")
+    email = st.text_input("Email")
+    password = st.text_input("Password", type="password")
+
+    col1,col2,col3 = st.columns(3)
+
+    with col1:
+        if st.button("REGISTER"):
+            if name and email and password:
+                try:
+                    validate_email(email)
+                    save_user({"name":name,"email":email})
+                    st.session_state.logged_in=True
+                    st.session_state.user_full_name=name
+                    st.rerun()
+                except:
+                    st.error("Invalid Email")
+
+    with col2:
+        if st.button("LOGIN"):
+            if password=="Hasith12378":
+                save_user({"name":name,"email":email})
+                st.session_state.logged_in=True
+                st.session_state.user_full_name=name
+                st.rerun()
+
+    with col3:
+        if st.button("Sign in with Google"):
+            st.info("Google OAuth setup required in Google Cloud Console")
+
     st.stop()
 
-# --- 5. Sidebar & UI ---
+# -----------------------
+# AI CORE FUNCTIONS
+# -----------------------
+async def speak_alpha(text):
+    voice="en-US-SteffanNeural"
+    comm=edge_tts.Communicate(text,voice)
+
+    audio=b""
+    async for chunk in comm.stream():
+        if chunk["type"]=="audio":
+            audio+=chunk["data"]
+
+    b64=base64.b64encode(audio).decode()
+    st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
+
+def internet_search(query):
+    url=f"https://www.google.com/search?q={query}"
+    headers={"User-Agent":"Mozilla/5.0"}
+    r=requests.get(url,headers=headers)
+
+    soup=BeautifulSoup(r.text,"html.parser")
+    results=[g.text for g in soup.select("div.BNeawe")[:5]]
+
+    return "\n".join(results)
+
+client=Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+def ask_ai(prompt,mode):
+
+    memory="\n".join(st.session_state.memory[-5:])
+
+    if mode=="Normal":
+        model="llama-3.3-70b-versatile"
+    else:
+        model="openai/gpt-oss-120b"
+
+    messages=[
+        {"role":"system","content":"You are Alpha AI created by Hasith."},
+        {"role":"system","content":memory},
+        {"role":"user","content":prompt}
+    ]
+
+    res=client.chat.completions.create(
+        model=model,
+        messages=messages
+    )
+
+    return res.choices[0].message.content
+
+# -----------------------
+# SIDEBAR CONTROL PANEL
+# -----------------------
 with st.sidebar:
-    st.markdown(f'<div class="hasith-badge"><b>HASITH</b><br><small>SYSTEM ARCHITECT</small></div>', unsafe_allow_html=True)
-    mode = st.radio("Intelligence Unit", ["Llama 3.3 (Normal)", "GPT OSS 120B (Pro)"])
-    if st.button("🔌 Log Out"): st.session_state.logged_in = False; st.rerun()
 
-st.markdown('<div class="alpha-neon-title">ALPHA AI</div>', unsafe_allow_html=True)
+    st.header("⚡ Alpha Control")
 
-if "messages" not in st.session_state: st.session_state.messages = []
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"])
+    st.write(f"Operator: **{st.session_state.user_full_name}**")
 
-user_input = st.chat_input("State command, Hasith...")
+    # AI MODE SLIDER
+    power = st.slider("AI Power Level",0,1,0)
+
+    if power==0:
+        mode="Normal"
+        st.caption("⚡ LLaMA 70B Fast Mode")
+    else:
+        mode="Pro"
+        st.caption("🚀 GPT 120B Ultra Mode")
+
+    voice_mode=st.checkbox("Voice Chat")
+    internet_mode=st.checkbox("Internet Access")
+
+    if st.button("Logout"):
+        logout()
+        st.rerun()
+
+# -----------------------
+# MAIN INTERFACE
+# -----------------------
+st.title(f"Welcome {st.session_state.user_full_name}")
+
+st.write("Alpha AI ready...")
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+user_input = st.chat_input("Ask Alpha...")
+
 if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"): st.markdown(user_input)
+
+    st.session_state.messages.append({"role":"user","content":user_input})
+
+    with st.chat_message("user"):
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        text_ph = st.empty()
-        # Logic check
-        auto_ans = execute_system_command(user_input)
-        if auto_ans:
-            ans = auto_ans
+
+        if internet_mode:
+            prompt=user_input+"\n\nInternet Data:\n"+internet_search(user_input)
         else:
-            with st.spinner("Neural thinking..."):
-                client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-                model = "openai/gpt-oss-120b" if "Pro" in mode else "llama-3.3-70b-versatile"
-                res = client.chat.completions.create(model=model, messages=[{"role":"system","content":"You are Alpha AI developed by Hasith."}] + st.session_state.messages[-5:])
-                ans = res.choices[0].message.content
-        
-        asyncio.run(speak_alpha(ans))
-        type_effect(ans, text_ph)
-        st.session_state.messages.append({"role": "assistant", "content": ans})
+            prompt=user_input
+
+        with st.spinner("Thinking..."):
+            answer=ask_ai(prompt,mode)
+
+        st.markdown(answer)
+
+        if voice_mode:
+            asyncio.run(speak_alpha(answer))
+
+        st.session_state.messages.append({"role":"assistant","content":answer})
