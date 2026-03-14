@@ -1,14 +1,9 @@
 import streamlit as st
-from groq import Groq
-import time, base64, asyncio, requests, webbrowser
-import edge_tts
 from PyPDF2 import PdfReader
+import asyncio, base64, requests
 from bs4 import BeautifulSoup
-
-# -----------------------
-# Page Config
-# -----------------------
-st.set_page_config(page_title="Alpha AI | Jarvis", page_icon="⚡", layout="wide")
+import os
+from pathlib import Path
 
 # -----------------------
 # Session State
@@ -25,10 +20,9 @@ if "chat_options_visible" not in st.session_state: st.session_state.chat_options
 # Quick Login / Free Flow
 # -----------------------
 if not st.session_state.logged_in:
-    st.title("⚡ Alpha AI Login / Quick Free Access")
+    st.title("⚡ Alpha AI Login / Free Access")
     name = st.text_input("Operator Name")
-
-    col1, col2 = st.columns(2)
+    col1,col2 = st.columns(2)
     with col1:
         if st.button("Login / Start"):
             if name:
@@ -36,39 +30,14 @@ if not st.session_state.logged_in:
                 st.session_state.user_full_name=name
                 st.session_state.free_image_quota=10
                 st.rerun()
-            else:
-                st.warning("Enter name to proceed")
+            else: st.warning("Enter name")
     with col2:
-        if st.button("🚀 Quick Free Access (10 Images)"):
+        if st.button("🚀 Quick Free Access"):
             st.session_state.logged_in=True
             st.session_state.user_full_name=name if name else "FreeUser"
             st.session_state.free_image_quota=10
             st.rerun()
     st.stop()
-
-# -----------------------
-# Voice AI
-# -----------------------
-async def speak_alpha(text):
-    voice="en-US-SteffanNeural"
-    comm=edge_tts.Communicate(text,voice)
-    audio=b""
-    async for chunk in comm.stream():
-        if chunk["type"]=="audio":
-            audio+=chunk["data"]
-    b64=base64.b64encode(audio).decode()
-    st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
-
-# -----------------------
-# Internet Search
-# -----------------------
-def internet_search(query):
-    url=f"https://www.google.com/search?q={query}"
-    headers={"User-Agent":"Mozilla/5.0"}
-    r=requests.get(url,headers=headers)
-    soup=BeautifulSoup(r.text,"html.parser")
-    results=[g.text for g in soup.select("div.BNeawe")[:5]]
-    return "\n".join(results)
 
 # -----------------------
 # File Reader
@@ -82,50 +51,43 @@ def read_file(upload):
         return upload.read().decode()
 
 # -----------------------
-# Image Generation
+# Internet Search
 # -----------------------
-def generate_image(prompt, style):
-    url = "https://api.stability.ai/v2beta/stable-image/generate/core"
-    headers = {
-        "Authorization": f"Bearer {st.secrets['STABILITY_API_KEY']}",
-        "Accept": "image/*"
-    }
-    full_prompt = f"{style} style, {prompt}" if style else prompt
-    files = {
-        "prompt": (None, full_prompt),
-        "output_format": (None, "png")
-    }
-    response = requests.post(url, headers=headers, files=files)
-    if response.status_code == 200:
-        return response.content
-    else:
-        st.error(f"API Error: {response.text}")
+def internet_search(query):
+    url=f"https://www.google.com/search?q={query}"
+    headers={"User-Agent":"Mozilla/5.0"}
+    r=requests.get(url,headers=headers)
+    soup=BeautifulSoup(r.text,"html.parser")
+    results=[g.text for g in soup.select("div.BNeawe")[:5]]
+    return "\n".join(results)
+
+# -----------------------
+# Automatic1111 Local Image Generation
+# -----------------------
+# Assumes Automatic1111 running locally: http://127.0.0.1:7860
+def generate_image_local(prompt, style):
+    try:
+        url="http://127.0.0.1:7860/sdapi/v1/txt2img"
+        payload={"prompt": f"{style} style, {prompt}", "steps":20, "width":512, "height":512, "sampler_name":"Euler"}
+        r=requests.post(url,json=payload)
+        if r.status_code==200:
+            img_bytes=base64.b64decode(r.json()["images"][0])
+            return img_bytes
+        else:
+            st.error(f"Local API Error: {r.status_code}")
+            return None
+    except:
+        st.error("Automatic1111 local server not running")
         return None
 
 # -----------------------
-# AI Client
-# -----------------------
-client=Groq(api_key=st.secrets["GROQ_API_KEY"])
-def ask_ai(prompt,mode):
-    memory="\n".join(st.session_state.memory[-5:])
-    model="llama-3.3-70b-versatile" if mode=="Normal" else "openai/gpt-oss-120b"
-    messages=[
-        {"role":"system","content":"You are Alpha AI created by Hasith."},
-        {"role":"system","content":memory},
-        {"role":"user","content":prompt}
-    ]
-    res=client.chat.completions.create(model=model,messages=messages)
-    return res.choices[0].message.content
-
-# -----------------------
-# Sidebar Controls (Slide-bar Chat Options)
+# Sidebar Controls
 # -----------------------
 with st.sidebar:
-    st.header("⚡ Alpha Control Panel")
+    st.header("⚡ Alpha AI Control Panel")
     st.write(f"Operator: **{st.session_state.user_full_name}**")
     st.write(f"Remaining Free Images: {st.session_state.free_image_quota}")
 
-    mode=st.radio("AI Mode", ["Normal","Pro"])
     voice_mode=st.checkbox("Voice Chat")
     internet_mode=st.checkbox("Internet Search")
 
@@ -140,11 +102,10 @@ with st.sidebar:
         st.session_state.logged_in=False
         st.rerun()
 
-    # --- Chat Options / Image Generation ---
+    # --- Image Generation Sidebar ---
     st.subheader("🖼 Chat Options")
     img_style = st.selectbox("Select Image Style", ["Realistic","Anime","Cyberpunk","Fantasy"])
     img_prompt = st.text_input("Describe image to generate")
-
     col1,col2 = st.columns(2)
     with col1:
         if st.button("Generate Photo"):
@@ -154,7 +115,7 @@ with st.sidebar:
                 st.warning("Enter prompt first")
             else:
                 with st.spinner("Generating image..."):
-                    img=generate_image(img_prompt,img_style)
+                    img=generate_image_local(img_prompt,img_style)
                     if img:
                         st.session_state.image_story.append({"prompt":img_prompt,"style":img_style,"image":img})
                         st.session_state.free_image_quota -=1
@@ -184,17 +145,13 @@ if user_input:
     # Append user message
     st.session_state.messages.append({"role":"user","content":user_input})
 
-    # Generate AI response
+    # Generate AI response (dummy echo for now, integrate Groq or other model if needed)
     prompt_text = user_input
     if internet_mode:
         prompt_text += "\n\nInternet Data:\n" + internet_search(user_input)
-    with st.spinner("Thinking..."):
-        answer = ask_ai(prompt_text, mode)
+    answer = f"Alpha AI Response: {prompt_text}"  # replace with your AI model
+
     st.session_state.messages.append({"role":"assistant","content":answer})
-    
-    if voice_mode:
-        asyncio.run(speak_alpha(answer))
-    
     st.rerun()
 
 # -----------------------
