@@ -118,7 +118,7 @@ def ask_ai(prompt,mode):
     return res.choices[0].message.content
 
 # -----------------------
-# Sidebar Controls (Always Visible)
+# Sidebar Controls
 # -----------------------
 with st.sidebar:
     st.header("⚡ Alpha Control Panel")
@@ -141,17 +141,18 @@ with st.sidebar:
         st.rerun()
 
 # -----------------------
-# Main Chat Interface
+# Main Chat Display
 # -----------------------
 st.title(f"Welcome {st.session_state.user_full_name}")
 st.write("Alpha AI ready...")
 
+# Show all messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # -----------------------
-# Chat Options (Hide Only on Send)
+# Chat Options (Temporary Hide Only)
 # -----------------------
 def display_chat_options():
     st.subheader("🖼 Chat Options")
@@ -177,35 +178,32 @@ def display_chat_options():
             last_prompt=st.session_state.image_story[-1]["prompt"] if st.session_state.image_story else "No image yet"
             st.info(f"Last image prompt: {last_prompt}")
 
-# Display chat options if visible
 if st.session_state.chat_options_visible:
     display_chat_options()
 
+# -----------------------
+# Chat Input
+# -----------------------
 user_input = st.chat_input("Ask Alpha...")
 
 if user_input:
-    # Hide chat options only
+    # Hide options temporarily while sending
     st.session_state.chat_options_visible=False
-    st.rerun()
 
     # Append user message
     st.session_state.messages.append({"role":"user","content":user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    
+    # Append AI response
+    prompt_text = user_input
+    if internet_mode:
+        prompt_text += "\n\nInternet Data:\n" + internet_search(user_input)
+    with st.spinner("Thinking..."):
+        answer = ask_ai(prompt_text, mode)
+    st.session_state.messages.append({"role":"assistant","content":answer})
+    if voice_mode:
+        asyncio.run(speak_alpha(answer))
 
-    # Generate AI response
-    with st.chat_message("assistant"):
-        prompt_text = user_input
-        if internet_mode:
-            prompt_text += "\n\nInternet Data:\n" + internet_search(user_input)
-        with st.spinner("Thinking..."):
-            answer = ask_ai(prompt_text, mode)
-        st.markdown(answer)
-        if voice_mode:
-            asyncio.run(speak_alpha(answer))
-        st.session_state.messages.append({"role":"assistant","content":answer})
-
-    # Restore chat options
+    # Restore options
     st.session_state.chat_options_visible=True
     st.rerun()
 
