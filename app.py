@@ -19,6 +19,7 @@ if "logged_in" not in st.session_state: st.session_state.logged_in=False
 if "user_full_name" not in st.session_state: st.session_state.user_full_name=None
 if "image_story" not in st.session_state: st.session_state.image_story=[]
 if "free_image_quota" not in st.session_state: st.session_state.free_image_quota=10
+if "chat_options_visible" not in st.session_state: st.session_state.chat_options_visible=True
 
 # -----------------------
 # Quick Login / Free Flow
@@ -117,11 +118,12 @@ def ask_ai(prompt,mode):
     return res.choices[0].message.content
 
 # -----------------------
-# Sidebar Controls
+# Sidebar Controls (Always Visible)
 # -----------------------
 with st.sidebar:
     st.header("⚡ Alpha Control Panel")
     st.write(f"Operator: **{st.session_state.user_full_name}**")
+    st.write(f"Remaining Free Images: {st.session_state.free_image_quota}")
 
     mode=st.radio("AI Mode", ["Normal","Pro"])
     voice_mode=st.checkbox("Voice Chat")
@@ -139,21 +141,55 @@ with st.sidebar:
         st.rerun()
 
 # -----------------------
-# Main Interface
+# Main Chat Interface
 # -----------------------
 st.title(f"Welcome {st.session_state.user_full_name}")
 st.write("Alpha AI ready...")
 
-# Chat
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# -----------------------
+# Chat Input & Options (Auto-Hide)
+# -----------------------
+if st.session_state.chat_options_visible:
+    st.subheader("🖼 Chat Options")
+    img_style = st.selectbox("Select Image Style", ["Realistic","Anime","Cyberpunk","Fantasy"])
+    img_prompt = st.text_input("Describe image to generate")
+
+    col1,col2 = st.columns(2)
+    with col1:
+        if st.button("Generate Photo"):
+            if st.session_state.free_image_quota <=0:
+                st.warning("Free 10 image quota used up")
+            elif img_prompt.strip()=="":
+                st.warning("Enter prompt first")
+            else:
+                with st.spinner("Generating image..."):
+                    img=generate_image(img_prompt,img_style)
+                    if img:
+                        st.session_state.image_story.append({"prompt":img_prompt,"style":img_style,"image":img})
+                        st.session_state.free_image_quota -=1
+                        st.success(f"Image generated! Remaining quota: {st.session_state.free_image_quota}")
+    with col2:
+        if st.button("Summarize"):
+            last_prompt=st.session_state.image_story[-1]["prompt"] if st.session_state.image_story else "No image yet"
+            st.info(f"Last image prompt: {last_prompt}")
+
 user_input = st.chat_input("Ask Alpha...")
+
 if user_input:
+    # Hide only chat options while sending message
+    st.session_state.chat_options_visible=False
+    st.rerun()
+
+    # Append user message
     st.session_state.messages.append({"role":"user","content":user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
+
+    # Generate AI answer
     with st.chat_message("assistant"):
         prompt_text = user_input
         if internet_mode:
@@ -165,34 +201,13 @@ if user_input:
             asyncio.run(speak_alpha(answer))
         st.session_state.messages.append({"role":"assistant","content":answer})
 
+    # Show chat options again
+    st.session_state.chat_options_visible=True
+    st.rerun()
+
 # -----------------------
-# Image Generation Panel
+# Display Image Story (Last 10)
 # -----------------------
-st.subheader("🖼 Generate Images / Image Story")
-img_style = st.selectbox("Select Image Style", ["Realistic","Anime","Cyberpunk","Fantasy"])
-img_prompt = st.text_input("Describe image to generate")
-
-col1,col2 = st.columns(2)
-with col1:
-    if st.button("Generate Photo"):
-        if st.session_state.free_image_quota <=0:
-            st.warning("Free 10 image quota used up")
-        elif img_prompt.strip()=="":
-            st.warning("Enter prompt first")
-        else:
-            with st.spinner("Generating image..."):
-                img=generate_image(img_prompt,img_style)
-                if img:
-                    st.session_state.image_story.append({"prompt":img_prompt,"style":img_style,"image":img})
-                    st.session_state.free_image_quota -=1
-                    st.success(f"Image generated! Remaining quota: {st.session_state.free_image_quota}")
-
-with col2:
-    if st.button("Summarize"):
-        last_prompt=st.session_state.image_story[-1]["prompt"] if st.session_state.image_story else "No image yet"
-        st.info(f"Last image prompt: {last_prompt}")
-
-# Display Image Story (last 10 images)
 if st.session_state.image_story:
     st.subheader("🖼 Image Story (Last 10 Images)")
     for idx, entry in enumerate(reversed(st.session_state.image_story[-10:])):
