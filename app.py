@@ -151,9 +151,9 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # -----------------------
-# Chat Input & Options (Auto-Hide)
+# Chat Options (Hide Only on Send)
 # -----------------------
-if st.session_state.chat_options_visible:
+def display_chat_options():
     st.subheader("🖼 Chat Options")
     img_style = st.selectbox("Select Image Style", ["Realistic","Anime","Cyberpunk","Fantasy"])
     img_prompt = st.text_input("Describe image to generate")
@@ -177,10 +177,14 @@ if st.session_state.chat_options_visible:
             last_prompt=st.session_state.image_story[-1]["prompt"] if st.session_state.image_story else "No image yet"
             st.info(f"Last image prompt: {last_prompt}")
 
+# Display chat options if visible
+if st.session_state.chat_options_visible:
+    display_chat_options()
+
 user_input = st.chat_input("Ask Alpha...")
 
 if user_input:
-    # Hide only chat options while sending message
+    # Hide chat options only
     st.session_state.chat_options_visible=False
     st.rerun()
 
@@ -189,7 +193,7 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Generate AI answer
+    # Generate AI response
     with st.chat_message("assistant"):
         prompt_text = user_input
         if internet_mode:
@@ -201,7 +205,7 @@ if user_input:
             asyncio.run(speak_alpha(answer))
         st.session_state.messages.append({"role":"assistant","content":answer})
 
-    # Show chat options again
+    # Restore chat options
     st.session_state.chat_options_visible=True
     st.rerun()
 
