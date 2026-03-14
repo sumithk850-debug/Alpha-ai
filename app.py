@@ -1,43 +1,22 @@
 import streamlit as st
 from groq import Groq
-import time, base64, asyncio, requests, webbrowser, json, os
+import time, base64, asyncio, requests, webbrowser
 import edge_tts
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 from streamlit_mic_recorder import mic_recorder
 from email_validator import validate_email
-import streamlit.components.v1 as components
 
 # -----------------------
 # PAGE CONFIG
 # -----------------------
+
 st.set_page_config(page_title="Alpha AI | Jarvis v4", page_icon="⚡", layout="wide")
-
-# -----------------------
-# COOKIE LOGIN SYSTEM
-# -----------------------
-COOKIE_FILE = "alpha_user.json"
-
-def save_user(user):
-    with open(COOKIE_FILE,"w") as f:
-        json.dump(user,f)
-
-def load_user():
-    if os.path.exists(COOKIE_FILE):
-        with open(COOKIE_FILE) as f:
-            return json.load(f)
-    return None
-
-def logout():
-    if os.path.exists(COOKIE_FILE):
-        os.remove(COOKIE_FILE)
-    st.session_state.logged_in=False
-
-saved_user = load_user()
 
 # -----------------------
 # SESSION STATE
 # -----------------------
+
 if "messages" not in st.session_state:
     st.session_state.messages=[]
 
@@ -50,14 +29,11 @@ if "logged_in" not in st.session_state:
 if "user_full_name" not in st.session_state:
     st.session_state.user_full_name=None
 
-# AUTO LOGIN
-if saved_user:
-    st.session_state.logged_in=True
-    st.session_state.user_full_name=saved_user["name"]
 
 # -----------------------
 # LOGIN PAGE
 # -----------------------
+
 if not st.session_state.logged_in:
 
     st.title("⚡ ALPHA CORE LOGIN")
@@ -66,14 +42,13 @@ if not st.session_state.logged_in:
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
 
-    col1,col2,col3 = st.columns(3)
+    col1,col2 = st.columns(2)
 
     with col1:
         if st.button("REGISTER"):
             if name and email and password:
                 try:
                     validate_email(email)
-                    save_user({"name":name,"email":email})
                     st.session_state.logged_in=True
                     st.session_state.user_full_name=name
                     st.rerun()
@@ -83,41 +58,103 @@ if not st.session_state.logged_in:
     with col2:
         if st.button("LOGIN"):
             if password=="Hasith12378":
-                save_user({"name":name,"email":email})
                 st.session_state.logged_in=True
                 st.session_state.user_full_name=name
                 st.rerun()
 
-    with col3:
-        if st.button("Sign in with Google"):
-            st.info("Google OAuth setup required in Google Cloud Console")
-
     st.stop()
 
 # -----------------------
-# AI CORE FUNCTIONS
+# FUNCTIONS
 # -----------------------
+
 async def speak_alpha(text):
+
     voice="en-US-SteffanNeural"
+
     comm=edge_tts.Communicate(text,voice)
 
     audio=b""
+
     async for chunk in comm.stream():
         if chunk["type"]=="audio":
             audio+=chunk["data"]
 
     b64=base64.b64encode(audio).decode()
-    st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
+
+    st.markdown(
+        f'<audio autoplay src="data:audio/mp3;base64,{b64}">',
+        unsafe_allow_html=True
+    )
+
 
 def internet_search(query):
+
     url=f"https://www.google.com/search?q={query}"
+
     headers={"User-Agent":"Mozilla/5.0"}
+
     r=requests.get(url,headers=headers)
 
     soup=BeautifulSoup(r.text,"html.parser")
+
     results=[g.text for g in soup.select("div.BNeawe")[:5]]
 
     return "\n".join(results)
+
+
+def read_file(upload):
+
+    if upload.name.endswith(".pdf"):
+
+        reader=PdfReader(upload)
+
+        text="".join([p.extract_text() for p in reader.pages])
+
+        return text[:4000]
+
+    else:
+
+        return upload.read().decode()
+
+
+# -----------------------
+# IMAGE GENERATION
+# -----------------------
+
+def generate_image(prompt):
+
+    url="https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
+
+    headers={
+        "Authorization":f"Bearer {st.secrets['STABILITY_API_KEY']}",
+        "Content-Type":"application/json"
+    }
+
+    data={
+        "text_prompts":[{"text":prompt}],
+        "cfg_scale":7,
+        "height":512,
+        "width":512,
+        "samples":1
+    }
+
+    r=requests.post(url,headers=headers,json=data)
+
+    if r.status_code==200:
+
+        result=r.json()
+
+        img=base64.b64decode(result["artifacts"][0]["base64"])
+
+        return img
+
+    return None
+
+
+# -----------------------
+# AI CLIENT
+# -----------------------
 
 client=Groq(api_key=st.secrets["GROQ_API_KEY"])
 
@@ -126,8 +163,11 @@ def ask_ai(prompt,mode):
     memory="\n".join(st.session_state.memory[-5:])
 
     if mode=="Normal":
+
         model="llama-3.3-70b-versatile"
+
     else:
+
         model="openai/gpt-oss-120b"
 
     messages=[
@@ -143,65 +183,118 @@ def ask_ai(prompt,mode):
 
     return res.choices[0].message.content
 
+
 # -----------------------
-# SIDEBAR CONTROL PANEL
+# SIDEBAR
 # -----------------------
+
 with st.sidebar:
 
-    st.header("⚡ Alpha Control")
+    st.header("⚡ Alpha Control Panel")
 
     st.write(f"Operator: **{st.session_state.user_full_name}**")
 
-    # AI MODE SLIDER
-    power = st.slider("AI Power Level",0,1,0)
+    power=st.slider("AI Power Level",0,1,0)
 
     if power==0:
         mode="Normal"
-        st.caption("⚡ LLaMA 70B Fast Mode")
+        st.caption("⚡ LLaMA Fast Mode")
     else:
         mode="Pro"
-        st.caption("🚀 GPT 120B Ultra Mode")
+        st.caption("🚀 GPT Ultra Mode")
 
     voice_mode=st.checkbox("Voice Chat")
-    internet_mode=st.checkbox("Internet Access")
+
+    internet_mode=st.checkbox("Internet Search")
+
+    uploaded=st.file_uploader("Upload File")
+
+    if uploaded:
+        text=read_file(uploaded)
+        st.session_state.memory.append(text)
+        st.success("File loaded into memory")
+
+    if st.button("Clear Memory"):
+        st.session_state.memory=[]
 
     if st.button("Logout"):
-        logout()
+        st.session_state.logged_in=False
         st.rerun()
 
+    st.divider()
+
+    # IMAGE GENERATOR
+
+    st.subheader("🖼 Image Generator")
+
+    img_prompt=st.text_input("Describe image")
+
+    if st.button("Generate Image"):
+
+        with st.spinner("Generating..."):
+
+            img=generate_image(img_prompt)
+
+            if img:
+                st.image(img)
+            else:
+                st.error("Image generation failed")
+
+    st.divider()
+
+    # VIDEO GENERATOR PLACEHOLDER
+
+    st.subheader("🎬 Video Generator")
+
+    video_prompt=st.text_input("Describe video")
+
+    if st.button("Generate Video"):
+        st.info("Video generation coming soon")
+
+
 # -----------------------
-# MAIN INTERFACE
+# MAIN CHAT
 # -----------------------
+
 st.title(f"Welcome {st.session_state.user_full_name}")
 
 st.write("Alpha AI ready...")
 
 for msg in st.session_state.messages:
+
     with st.chat_message(msg["role"]):
+
         st.markdown(msg["content"])
 
-user_input = st.chat_input("Ask Alpha...")
+
+user_input=st.chat_input("Ask Alpha...")
 
 if user_input:
 
     st.session_state.messages.append({"role":"user","content":user_input})
 
     with st.chat_message("user"):
+
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
 
         if internet_mode:
+
             prompt=user_input+"\n\nInternet Data:\n"+internet_search(user_input)
+
         else:
+
             prompt=user_input
 
         with st.spinner("Thinking..."):
+
             answer=ask_ai(prompt,mode)
 
         st.markdown(answer)
 
         if voice_mode:
+
             asyncio.run(speak_alpha(answer))
 
         st.session_state.messages.append({"role":"assistant","content":answer})
