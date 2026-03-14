@@ -4,17 +4,16 @@ import time, base64, asyncio, requests, webbrowser
 import edge_tts
 from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
-from streamlit_mic_recorder import mic_recorder
 from email_validator import validate_email
 
 # -----------------------
-# PAGE CONFIG
+# Page Config
 # -----------------------
 
-st.set_page_config(page_title="Alpha AI | Jarvis v4", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="Alpha AI | Jarvis", page_icon="⚡", layout="wide")
 
 # -----------------------
-# SESSION STATE
+# Session State
 # -----------------------
 
 if "messages" not in st.session_state:
@@ -31,12 +30,12 @@ if "user_full_name" not in st.session_state:
 
 
 # -----------------------
-# LOGIN PAGE
+# Login
 # -----------------------
 
 if not st.session_state.logged_in:
 
-    st.title("⚡ ALPHA CORE LOGIN")
+    st.title("⚡ Alpha AI Login")
 
     name = st.text_input("Name")
     email = st.text_input("Email")
@@ -45,7 +44,7 @@ if not st.session_state.logged_in:
     col1,col2 = st.columns(2)
 
     with col1:
-        if st.button("REGISTER"):
+        if st.button("Register"):
             if name and email and password:
                 try:
                     validate_email(email)
@@ -56,7 +55,7 @@ if not st.session_state.logged_in:
                     st.error("Invalid Email")
 
     with col2:
-        if st.button("LOGIN"):
+        if st.button("Login"):
             if password=="Hasith12378":
                 st.session_state.logged_in=True
                 st.session_state.user_full_name=name
@@ -64,8 +63,9 @@ if not st.session_state.logged_in:
 
     st.stop()
 
+
 # -----------------------
-# FUNCTIONS
+# Voice AI
 # -----------------------
 
 async def speak_alpha(text):
@@ -88,6 +88,10 @@ async def speak_alpha(text):
     )
 
 
+# -----------------------
+# Internet Search
+# -----------------------
+
 def internet_search(query):
 
     url=f"https://www.google.com/search?q={query}"
@@ -102,6 +106,10 @@ def internet_search(query):
 
     return "\n".join(results)
 
+
+# -----------------------
+# File Reader
+# -----------------------
 
 def read_file(upload):
 
@@ -119,41 +127,34 @@ def read_file(upload):
 
 
 # -----------------------
-# IMAGE GENERATION
+# Image Generation
 # -----------------------
 
 def generate_image(prompt):
 
-    url="https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
+    url = "https://api.stability.ai/v2beta/stable-image/generate/core"
 
-    headers={
-        "Authorization":f"Bearer {st.secrets['STABILITY_API_KEY']}",
-        "Content-Type":"application/json"
+    headers = {
+        "Authorization": f"Bearer {st.secrets['STABILITY_API_KEY']}",
+        "Accept": "image/*"
     }
 
-    data={
-        "text_prompts":[{"text":prompt}],
-        "cfg_scale":7,
-        "height":512,
-        "width":512,
-        "samples":1
+    files = {
+        "prompt": (None, prompt),
+        "output_format": (None, "png")
     }
 
-    r=requests.post(url,headers=headers,json=data)
+    response = requests.post(url, headers=headers, files=files)
 
-    if r.status_code==200:
-
-        result=r.json()
-
-        img=base64.b64decode(result["artifacts"][0]["base64"])
-
-        return img
-
-    return None
+    if response.status_code == 200:
+        return response.content
+    else:
+        st.error(f"API Error: {response.text}")
+        return None
 
 
 # -----------------------
-# AI CLIENT
+# AI Client
 # -----------------------
 
 client=Groq(api_key=st.secrets["GROQ_API_KEY"])
@@ -163,11 +164,8 @@ def ask_ai(prompt,mode):
     memory="\n".join(st.session_state.memory[-5:])
 
     if mode=="Normal":
-
         model="llama-3.3-70b-versatile"
-
     else:
-
         model="openai/gpt-oss-120b"
 
     messages=[
@@ -185,7 +183,7 @@ def ask_ai(prompt,mode):
 
 
 # -----------------------
-# SIDEBAR
+# Sidebar
 # -----------------------
 
 with st.sidebar:
@@ -231,18 +229,24 @@ with st.sidebar:
 
     if st.button("Generate Image"):
 
-        with st.spinner("Generating..."):
+        if img_prompt.strip()=="":
 
-            img=generate_image(img_prompt)
+            st.warning("Enter image description")
 
-            if img:
-                st.image(img)
-            else:
-                st.error("Image generation failed")
+        else:
+
+            with st.spinner("Generating image..."):
+
+                img=generate_image(img_prompt)
+
+                if img:
+                    st.image(img)
+                else:
+                    st.error("Image generation failed")
 
     st.divider()
 
-    # VIDEO GENERATOR PLACEHOLDER
+    # VIDEO GENERATOR
 
     st.subheader("🎬 Video Generator")
 
@@ -253,7 +257,7 @@ with st.sidebar:
 
 
 # -----------------------
-# MAIN CHAT
+# Main Chat
 # -----------------------
 
 st.title(f"Welcome {st.session_state.user_full_name}")
