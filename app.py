@@ -1,252 +1,131 @@
 import streamlit as st
-import requests
 from huggingface_hub import InferenceClient
-from PyPDF2 import PdfReader
+from PIL import Image
+import requests
 from bs4 import BeautifulSoup
+import PyPDF2
 import io
 
-# -----------------------
-# CONFIG
-# -----------------------
+# HuggingFace Token
+HF_TOKEN = "YOUR_HF_TOKEN"
 
-HF_TOKEN = "PUT_YOUR_HF_TOKEN_HERE"
-
+# Image model
 image_client = InferenceClient(
-    model="stabilityai/stable-diffusion-2",
+    model="stabilityai/stable-diffusion-xl-base-1.0",
     token=HF_TOKEN
 )
 
-# -----------------------
-# SESSION STATE
-# -----------------------
+# Page setup
+st.set_page_config(page_title="Alpha AI", page_icon="⚡")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# Session state
+if "images_left" not in st.session_state:
+    st.session_state.images_left = 10
 
-if "memory" not in st.session_state:
-    st.session_state.memory = []
+# Header
+st.title("⚡ Alpha Control Panel")
+st.write("User: Hasith")
+st.write(f"Free Images Left: {st.session_state.images_left}")
 
-if "image_story" not in st.session_state:
-    st.session_state.image_story = []
+# -------------------------
+# FILE UPLOAD
+# -------------------------
 
-if "free_image_quota" not in st.session_state:
-    st.session_state.free_image_quota = 10
+st.subheader("Upload File")
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+uploaded_file = st.file_uploader(
+    "Drag and drop file here",
+    type=["txt", "pdf"]
+)
 
-if "user_full_name" not in st.session_state:
-    st.session_state.user_full_name = ""
+if uploaded_file:
 
-# -----------------------
-# LOGIN
-# -----------------------
+    if uploaded_file.type == "application/pdf":
 
-if not st.session_state.logged_in:
-
-    st.title("⚡ Alpha AI Login")
-
-    name = st.text_input("Enter your name")
-
-    if st.button("Start Alpha AI"):
-
-        if name:
-
-            st.session_state.logged_in = True
-            st.session_state.user_full_name = name
-            st.rerun()
-
-        else:
-
-            st.warning("Enter your name")
-
-    st.stop()
-
-# -----------------------
-# FILE READER
-# -----------------------
-
-def read_file(upload):
-
-    if upload.name.endswith(".pdf"):
-
-        reader = PdfReader(upload)
+        pdf_reader = PyPDF2.PdfReader(uploaded_file)
 
         text = ""
 
-        for page in reader.pages:
+        for page in pdf_reader.pages:
             text += page.extract_text()
 
-        return text[:3000]
+        st.text_area("PDF Content", text, height=200)
 
     else:
 
-        return upload.read().decode()
+        text = uploaded_file.read().decode()
+        st.text_area("File Content", text, height=200)
 
-# -----------------------
-# INTERNET SEARCH
-# -----------------------
+# -------------------------
+# WEBSITE SCRAPER
+# -------------------------
 
-def internet_search(query):
+st.subheader("Website Reader")
 
-    url = f"https://www.google.com/search?q={query}"
+url = st.text_input("Enter website URL")
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+if st.button("Read Website"):
 
-    r = requests.get(url, headers=headers)
+    try:
+        r = requests.get(url)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-    soup = BeautifulSoup(r.text, "html.parser")
+        text = soup.get_text()
 
-    results = [g.text for g in soup.select("div.BNeawe")[:5]]
+        st.text_area("Website Text", text[:2000], height=200)
 
-    return "\n".join(results)
+    except:
+        st.error("Could not read website")
 
-# -----------------------
-# IMAGE GENERATION
-# -----------------------
+# -------------------------
+# IMAGE GENERATOR
+# -------------------------
+
+st.subheader("🖼 Image Generator")
+
+prompt = st.text_input("Describe image")
+
+style = st.selectbox(
+    "Style",
+    [
+        "Realistic",
+        "Anime",
+        "Cyberpunk",
+        "Fantasy",
+        "Digital Art",
+        "3D Render"
+    ]
+)
 
 def generate_image(prompt, style):
 
-    full_prompt = f"{prompt}, {style} style"
+    full_prompt = f"{prompt}, {style}, ultra detailed, cinematic lighting, 8k"
 
     image = image_client.text_to_image(full_prompt)
 
     return image
 
-# -----------------------
-# SIDEBAR
-# -----------------------
 
-with st.sidebar:
+if st.button("Generate Image"):
 
-    st.header("⚡ Alpha Control Panel")
+    if st.session_state.images_left <= 0:
+        st.error("No free images left")
+    else:
 
-    st.write(f"User: **{st.session_state.user_full_name}**")
+        with st.spinner("Generating image..."):
 
-    st.write(f"Free Images Left: {st.session_state.free_image_quota}")
+            img = generate_image(prompt, style)
 
-    internet_mode = st.checkbox("Internet Search")
+            st.image(img)
 
-    uploaded = st.file_uploader("Upload File")
+            st.session_state.images_left -= 1
 
-    if uploaded:
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
 
-        text = read_file(uploaded)
-
-        st.session_state.memory.append(text)
-
-        st.success("File added to memory")
-
-    if st.button("Clear Memory"):
-
-        st.session_state.memory = []
-
-# -----------------------
-# IMAGE GENERATION PANEL
-# -----------------------
-
-    st.subheader("🖼 Image Generator")
-
-    img_prompt = st.text_input("Describe image")
-
-    style = st.selectbox(
-
-        "Style",
-
-        ["Realistic", "Anime", "Cyberpunk", "Fantasy", "Digital Art"]
-
-    )
-
-    if st.button("Generate Image"):
-
-        if st.session_state.free_image_quota <= 0:
-
-            st.warning("Image quota finished")
-
-        elif img_prompt == "":
-
-            st.warning("Enter prompt")
-
-        else:
-
-            with st.spinner("Generating..."):
-
-                img = generate_image(img_prompt, style)
-
-                st.session_state.image_story.append(
-
-                    {"prompt": img_prompt, "style": style, "image": img}
-
-                )
-
-                st.session_state.free_image_quota -= 1
-
-                st.success("Image generated!")
-
-# -----------------------
-# MAIN CHAT
-# -----------------------
-
-st.title("⚡ Alpha AI Assistant")
-
-for msg in st.session_state.messages:
-
-    with st.chat_message(msg["role"]):
-
-        st.markdown(msg["content"])
-
-user_input = st.chat_input("Ask Alpha AI...")
-
-if user_input:
-
-    st.session_state.messages.append(
-        {"role": "user", "content": user_input}
-    )
-
-    answer = user_input
-
-    if internet_mode:
-
-        answer += "\n\nInternet Data:\n" + internet_search(user_input)
-
-    response = f"Alpha AI Response:\n{answer}"
-
-    st.session_state.messages.append(
-        {"role": "assistant", "content": response}
-    )
-
-    st.rerun()
-
-# -----------------------
-# IMAGE STORY
-# -----------------------
-
-if st.session_state.image_story:
-
-    st.subheader("🖼 Image Story")
-
-    for entry in reversed(st.session_state.image_story[-10:]):
-
-        st.markdown(
-            f"**Prompt:** {entry['prompt']} | **Style:** {entry['style']}"
-        )
-
-        st.image(entry["image"])
-
-        buf = io.BytesIO()
-
-        entry["image"].save(buf, format="PNG")
-
-        st.download_button(
-
-            "Download",
-
-            buf.getvalue(),
-
-            file_name="alpha_ai_image.png",
-
-            mime="image/png"
-
-        )
-
-        st.markdown("---")
+            st.download_button(
+                "Download Image",
+                buf.getvalue(),
+                "alpha_ai_image.png",
+                "image/png"
+            )
