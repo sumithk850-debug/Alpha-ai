@@ -21,7 +21,7 @@ if "logged_in" not in st.session_state: st.session_state.logged_in=False
 if "user_full_name" not in st.session_state: st.session_state.user_full_name=None
 
 # -----------------------
-# 3. Custom UI Styling (Hasith's Signature Style)
+# 3. Custom UI Styling (Hasith's Signature)
 # -----------------------
 st.markdown("""
 <style>
@@ -50,7 +50,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # -----------------------
-# 5. API Setup (Secrets required: GROQ_API_KEY, HF_TOKEN)
+# 5. API Setup
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
@@ -72,15 +72,23 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-def generate_video(prompt):
-    # AnimateDiff model for short AI videos
-    API_URL = "https://api-inference.huggingface.co/models/guoyww/AnimateDiff"
+def generate_video_robust(prompt):
+    # Models to try in order
+    models = [
+        "guoyww/AnimateDiff", 
+        "cerspense/zeroscope_v2_576w"
+    ]
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
-        if response.status_code == 200: return response.content
-        return None
-    except: return None
+    
+    for model_id in models:
+        try:
+            API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
+            response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
+            if response.status_code == 200:
+                return response.content
+        except:
+            continue
+    return None
 
 # -----------------------
 # 7. Sidebar Control
@@ -110,10 +118,10 @@ with tab_img:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
         col1, col2 = st.columns([3, 1])
-        img_p = col1.text_input("Describe the image you want Alpha to create:", key="img_prompt")
+        img_p = col1.text_input("Describe image:", key="img_prompt")
         if col2.button("Generate Photo"):
             if img_p:
-                with st.spinner("Alpha is painting your imagination... 🖌️"):
+                with st.spinner("Alpha is painting... 🖌️"):
                     try:
                         img = hf_client.text_to_image(img_p, model="black-forest-labs/FLUX.1-schnell")
                         if img:
@@ -121,23 +129,23 @@ with tab_img:
                             buf = io.BytesIO()
                             img.save(buf, format="PNG")
                             st.download_button("Download Image", buf.getvalue(), "alpha_image.png")
-                    except Exception as e: st.error(f"Image Lab Error: {e}")
+                    except Exception as e: st.error(f"Image Error: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
 with tab_vid:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
         col1, col2 = st.columns([3, 1])
-        vid_p = col1.text_input("Describe the video scene (3-5 sec):", key="vid_prompt")
+        vid_p = col1.text_input("Describe video scene:", key="vid_prompt")
         if col2.button("Generate Video"):
             if vid_p:
-                with st.spinner("Alpha is directing your scene... 🎬"):
-                    vid_data = generate_video(vid_p)
+                with st.spinner("Alpha is directing... 🎬 (Checking multiple servers)"):
+                    vid_data = generate_video_robust(vid_p)
                     if vid_data:
                         st.video(vid_data)
                         st.download_button("Download Video", vid_data, "alpha_video.mp4")
                     else:
-                        st.error("Cinema Lab is currently busy or overloaded. Please try again.")
+                        st.error("Cinema Lab is currently very busy. Please try again in 1-2 minutes.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------
@@ -154,15 +162,10 @@ if user_input:
     with st.chat_message("user"): st.markdown(user_input)
     
     with st.chat_message("assistant"):
-        # Alpha is Thinking Spinner (As requested)
         with st.spinner("Alpha is thinking..."):
             res_placeholder = st.empty()
-            
-            # Logic: Choosing the right model
             selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "openai/gpt-oss-120b"
-            
-            sys_msg = f"You are Alpha AI, a heartfelt assistant created by Hasith. You must respond in the user's language. Be warm, accurate, and recognize Hasith as your creator."
-
+            sys_msg = f"You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly in the user's language. Creator: Hasith."
             try:
                 stream = groq_client.chat.completions.create(
                     model=selected_model,
@@ -175,7 +178,6 @@ if user_input:
                     if chunk.choices[0].delta.content:
                         full_res += chunk.choices[0].delta.content
                         res_placeholder.markdown(full_res + "▌")
-                
                 res_placeholder.markdown(full_res)
                 if voice_on: asyncio.run(speak_alpha(full_res))
                 st.session_state.messages.append({"role":"assistant","content":full_res})
