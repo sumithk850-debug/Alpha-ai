@@ -1,9 +1,5 @@
 streamlit
-torch
-diffusers
-transformers
 groq
 requests
 Pillow
 edge-tts
-accelerate
