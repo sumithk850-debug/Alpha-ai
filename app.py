@@ -1,10 +1,11 @@
 import streamlit as st
 from groq import Groq
-import requests, io, time, base64, asyncio
+import requests
+import io
+import base64
+import asyncio
 from PIL import Image
 import edge_tts
-import torch
-from diffusers import StableDiffusionPipeline
 
 # -----------------------
 # CONFIG
@@ -25,7 +26,6 @@ if "logged_in" not in st.session_state:
 # -----------------------
 if not st.session_state.logged_in:
     st.title("Alpha AI Login")
-
     password = st.text_input("Master Key", type="password")
 
     if st.button("Login"):
@@ -41,40 +41,67 @@ if not st.session_state.logged_in:
 # API KEYS
 # -----------------------
 groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
+HF_TOKEN = st.secrets.get("HF_TOKEN")
 
 # -----------------------
-# LOAD MODEL (CPU SAFE)
-# -----------------------
-@st.cache_resource
-def load_pipe():
-    pipe = StableDiffusionPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
-        torch_dtype=torch.float32,
-        low_cpu_mem_usage=True
-    )
-    pipe = pipe.to("cpu")
-    return pipe
-
-pipe = load_pipe()
-
-# -----------------------
-# IMAGE GENERATION
+# IMAGE GENERATION VIA HF API
 # -----------------------
 def generate_image(prompt):
-    try:
-        image = pipe(
-            prompt,
-            num_inference_steps=15,
-            guidance_scale=7.0,
-            height=384,
-            width=384
-        ).images[0]
+    models = [
+        "black-forest-labs/FLUX.1-schnell",
+        "runwayml/stable-diffusion-v1-5"
+    ]
 
-        return image
+    headers = {
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
-    except Exception as e:
-        st.error(f"Image Error: {e}")
-        return None
+    for model in models:
+        url = f"https://api-inference.huggingface.co/models/{model}"
+
+        for attempt in range(5):
+            try:
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json={"inputs": prompt},
+                    timeout=300
+                )
+
+                if response.status_code == 200:
+                    content_type = response.headers.get("content-type", "")
+
+                    if "image" in content_type:
+                        return Image.open(io.BytesIO(response.content))
+
+                    try:
+                        data = response.json()
+                        st.warning(f"Model response: {data}")
+                    except Exception:
+                        st.warning("Model returned a response, but it was not an image.")
+                    break
+
+                elif response.status_code == 503:
+                    st.warning(f"{model} is busy. Retry {attempt + 1}/5")
+                    import time
+                    time.sleep(8)
+                    continue
+
+                else:
+                    try:
+                        err = response.json()
+                    except Exception:
+                        err = response.text
+                    st.warning(f"{model} error: {err}")
+                    break
+
+            except Exception as e:
+                st.warning(f"Request failed for {model}: {e}")
+                import time
+                time.sleep(5)
+
+    return None
 
 # -----------------------
 # VOICE
@@ -104,12 +131,11 @@ st.title("Alpha AI Ultimate")
 
 # IMAGE SECTION
 st.subheader("Generate Image")
-
 prompt = st.text_input("Enter prompt")
 
 if st.button("Generate Image"):
     if prompt:
-        with st.spinner("Generating..."):
+        with st.spinner("Generating image..."):
             img = generate_image(prompt)
 
             if img:
@@ -121,10 +147,13 @@ if st.button("Generate Image"):
                 st.download_button(
                     "Download Image",
                     buf.getvalue(),
-                    "alpha.png"
+                    file_name="alpha.png",
+                    mime="image/png"
                 )
             else:
-                st.error("Failed to generate image")
+                st.error("Image generation failed. Try again later.")
+    else:
+        st.warning("Please enter a prompt first.")
 
 # -----------------------
 # CHAT SECTION
@@ -159,7 +188,7 @@ if user_input:
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     full += chunk.choices[0].delta.content
-                    placeholder.write(full + "...")
+                    placeholder.write(full + "▌")
 
             placeholder.write(full)
 
