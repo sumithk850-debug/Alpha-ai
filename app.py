@@ -41,7 +41,7 @@ groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
 HF_TOKEN = st.secrets.get("HF_TOKEN")
 
 # -----------------------
-# IMAGE GENERATION (CLOUD GPU)
+# IMAGE GENERATION (CPU-compatible)
 # -----------------------
 @st.cache_resource(show_spinner=False)
 def load_pipe():
@@ -49,7 +49,8 @@ def load_pipe():
         "runwayml/stable-diffusion-v1-5",
         torch_dtype=torch.float16
     )
-    pipe = pipe.to("cuda")  # Cloud GPU use
+    # CPU use for free Streamlit Cloud
+    pipe = pipe.to("cpu")
     return pipe
 
 pipe = load_pipe()
@@ -85,7 +86,7 @@ st.title("⚡ Alpha AI Ultimate")
 
 # IMAGE SECTION
 st.subheader("🖼 Generate Image")
-prompt = st.text_input("Enter your prompt for Cloud GPU generation")
+prompt = st.text_input("Enter your prompt for image generation")
 
 if st.button("Generate Image"):
     if prompt:
