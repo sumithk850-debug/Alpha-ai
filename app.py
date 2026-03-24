@@ -1,16 +1,16 @@
 import streamlit as st
-from huggingface_hub import InferenceClient
 from groq import Groq
-import base64, asyncio, io
+import requests, io, base64, asyncio, time
+from PIL import Image
 import edge_tts
 
 # -----------------------
-# PAGE CONFIG
+# CONFIG
 # -----------------------
-st.set_page_config(page_title="Alpha AI", layout="wide", page_icon="⚡")
+st.set_page_config(page_title="Alpha AI Ultimate", layout="wide", page_icon="⚡")
 
 # -----------------------
-# SESSION STATE
+# SESSION
 # -----------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -18,113 +18,104 @@ if "messages" not in st.session_state:
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
-if "user_full_name" not in st.session_state:
-    st.session_state.user_full_name = ""
-
 # -----------------------
-# LOGIN SYSTEM
+# LOGIN
 # -----------------------
 if not st.session_state.logged_in:
     st.title("🔐 Alpha AI Login")
 
-    name = st.text_input("Operator Name")
     password = st.text_input("Master Key", type="password")
 
     if st.button("Login"):
         if password == st.secrets.get("APP_PASSWORD"):
             st.session_state.logged_in = True
-            st.session_state.user_full_name = name if name else "Operator"
             st.rerun()
         else:
-            st.error("❌ Wrong Master Key")
+            st.error("❌ Wrong Password")
 
     st.stop()
 
 # -----------------------
-# API SETUP
+# API KEYS
 # -----------------------
 groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
-hf_client = InferenceClient(token=st.secrets.get("HF_TOKEN"))
+HF_TOKEN = st.secrets.get("HF_TOKEN")
 
 # -----------------------
-# VOICE FUNCTION
+# IMAGE GENERATION (BEST MODEL)
+# -----------------------
+def generate_image(prompt):
+    models = [
+        "black-forest-labs/FLUX.1-schnell",   # BEST
+        "runwayml/stable-diffusion-v1-5"      # fallback
+    ]
+
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+
+    for model in models:
+        API_URL = f"https://api-inference.huggingface.co/models/{model}"
+
+        try:
+            response = requests.post(
+                API_URL,
+                headers=headers,
+                json={"inputs": prompt},
+                timeout=90
+            )
+
+            if response.status_code == 200:
+                return Image.open(io.BytesIO(response.content))
+
+            elif response.status_code == 503:
+                st.warning(f"⏳ {model} loading...")
+                time.sleep(8)
+
+        except Exception as e:
+            continue
+
+    return None
+
+# -----------------------
+# VOICE
 # -----------------------
 async def speak(text):
     try:
-        communicate = edge_tts.Communicate(text, "en-US-SteffanNeural")
-        audio_bytes = b""
-
-        async for chunk in communicate.stream():
+        comm = edge_tts.Communicate(text, "en-US-SteffanNeural")
+        audio = b""
+        async for chunk in comm.stream():
             if chunk["type"] == "audio":
-                audio_bytes += chunk["data"]
+                audio += chunk["data"]
 
-        if audio_bytes:
-            b64 = base64.b64encode(audio_bytes).decode()
-            st.markdown(
-                f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>',
-                unsafe_allow_html=True
-            )
+        if audio:
+            b64 = base64.b64encode(audio).decode()
+            st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>', unsafe_allow_html=True)
     except:
         pass
 
 # -----------------------
-# IMAGE GENERATION (FIXED)
-# -----------------------
-@st.cache_data(show_spinner=False)
-def generate_image(prompt):
-    try:
-        image = hf_client.text_to_image(
-            prompt,
-            model="runwayml/stable-diffusion-v1-5"
-        )
-        return image
-    except:
-        return None
-
-# -----------------------
-# SIDEBAR
-# -----------------------
-with st.sidebar:
-    st.title("⚡ Alpha Control")
-    st.write(f"Operator: {st.session_state.user_full_name}")
-
-    mode = st.radio("Mode", ["Fast", "Smart"])
-    voice_on = st.checkbox("Voice Output", value=True)
-
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.rerun()
-
-# -----------------------
-# MAIN HEADER
+# UI
 # -----------------------
 st.title("⚡ Alpha AI Ultimate")
 
-# -----------------------
 # IMAGE SECTION
-# -----------------------
 st.subheader("🖼 Generate Image")
 
-img_prompt = st.text_input("Enter image prompt")
+prompt = st.text_input("Enter prompt")
 
 if st.button("Generate Image"):
-    if img_prompt:
-        with st.spinner("Generating image..."):
-            img = generate_image(img_prompt)
+    if prompt:
+        with st.spinner("Generating... please wait ⏳"):
+            img = generate_image(prompt)
 
-            if img is not None:
+            if img:
                 st.image(img)
 
                 buf = io.BytesIO()
                 img.save(buf, format="PNG")
 
-                st.download_button(
-                    "Download Image",
-                    buf.getvalue(),
-                    "alpha.png"
-                )
+                st.download_button("Download Image", buf.getvalue(), "alpha.png")
             else:
-                st.error("❌ Image generation failed")
+                st.error("❌ All models busy. Try again.")
 
 # -----------------------
 # CHAT SECTION
@@ -133,50 +124,35 @@ st.subheader("💬 Chat")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        st.write(msg["content"])
 
 user_input = st.chat_input("Ask Alpha...")
 
 if user_input:
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
-
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.chat_message("assistant"):
         placeholder = st.empty()
 
-        if mode == "Fast":
-            model = "llama-3.3-70b-versatile"
-        else:
-            model = "openai/gpt-oss-120b"
-
         try:
             stream = groq_client.chat.completions.create(
-                model=model,
+                model="llama-3.3-70b-versatile",
                 messages=st.session_state.messages[-10:],
                 temperature=0.5,
                 stream=True
             )
 
-            full_response = ""
-
+            full = ""
             for chunk in stream:
                 if chunk.choices[0].delta.content:
-                    full_response += chunk.choices[0].delta.content
-                    placeholder.markdown(full_response + "▌")
+                    full += chunk.choices[0].delta.content
+                    placeholder.write(full + "▌")
 
-            placeholder.markdown(full_response)
-
-            if voice_on:
-                asyncio.run(speak(full_response))
+            placeholder.write(full)
 
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": full_response
+                "content": full
             })
 
         except Exception as e:
