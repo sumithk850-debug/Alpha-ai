@@ -6,3 +6,4 @@ groq
 requests
 Pillow
 edge-tts
+accelerate
