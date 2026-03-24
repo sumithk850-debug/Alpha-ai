@@ -48,7 +48,7 @@ def load_pipe():
     pipe = StableDiffusionPipeline.from_pretrained(
         "runwayml/stable-diffusion-v1-5",
         torch_dtype=torch.float16
-    )😇
+    )
     pipe = pipe.to("cuda")  # Cloud GPU use
     return pipe
 
