@@ -1,6 +1,6 @@
 import streamlit as st
 from groq import Groq
-import requests, io, base64, asyncio, time
+import requests, io, time, base64, asyncio
 from PIL import Image
 import edge_tts
 
@@ -42,12 +42,12 @@ groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
 HF_TOKEN = st.secrets.get("HF_TOKEN")
 
 # -----------------------
-# IMAGE GENERATION (BEST MODEL)
+# IMAGE GENERATION (FULL FIX)
 # -----------------------
 def generate_image(prompt):
     models = [
-        "black-forest-labs/FLUX.1-schnell",   # BEST
-        "runwayml/stable-diffusion-v1-5"      # fallback
+        "black-forest-labs/FLUX.1-schnell",
+        "runwayml/stable-diffusion-v1-5"
     ]
 
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
@@ -55,23 +55,27 @@ def generate_image(prompt):
     for model in models:
         API_URL = f"https://api-inference.huggingface.co/models/{model}"
 
-        try:
-            response = requests.post(
-                API_URL,
-                headers=headers,
-                json={"inputs": prompt},
-                timeout=90
-            )
+        for attempt in range(5):  # retry 5 times
+            try:
+                response = requests.post(
+                    API_URL,
+                    headers=headers,
+                    json={"inputs": prompt},
+                    timeout=120
+                )
 
-            if response.status_code == 200:
-                return Image.open(io.BytesIO(response.content))
+                if response.status_code == 200:
+                    return Image.open(io.BytesIO(response.content))
 
-            elif response.status_code == 503:
-                st.warning(f"⏳ {model} loading...")
-                time.sleep(8)
+                elif response.status_code == 503:
+                    st.warning(f"⏳ {model} busy... retry {attempt+1}/5")
+                    time.sleep(8)
 
-        except Exception as e:
-            continue
+                else:
+                    break
+
+            except Exception as e:
+                time.sleep(5)
 
     return None
 
@@ -100,11 +104,11 @@ st.title("⚡ Alpha AI Ultimate")
 # IMAGE SECTION
 st.subheader("🖼 Generate Image")
 
-prompt = st.text_input("Enter prompt")
+prompt = st.text_input("Enter your prompt")
 
 if st.button("Generate Image"):
     if prompt:
-        with st.spinner("Generating... please wait ⏳"):
+        with st.spinner("🔥 Generating... please wait (10-40s)"):
             img = generate_image(prompt)
 
             if img:
@@ -115,7 +119,7 @@ if st.button("Generate Image"):
 
                 st.download_button("Download Image", buf.getvalue(), "alpha.png")
             else:
-                st.error("❌ All models busy. Try again.")
+                st.error("❌ Still busy. Try again in few seconds.")
 
 # -----------------------
 # CHAT SECTION
@@ -143,6 +147,7 @@ if user_input:
             )
 
             full = ""
+
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     full += chunk.choices[0].delta.content
@@ -154,6 +159,8 @@ if user_input:
                 "role": "assistant",
                 "content": full
             })
+
+            asyncio.run(speak(full))
 
         except Exception as e:
             st.error(f"Chat Error: {e}")
