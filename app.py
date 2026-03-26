@@ -1,203 +1,197 @@
 import streamlit as st
+from huggingface_hub import InferenceClient
 from groq import Groq
-import requests
-import io
-import base64
-import asyncio
-from PIL import Image
+import requests, base64, asyncio, io
 import edge_tts
+from PIL import Image
+import time
+import urllib.parse
+import random  
 
 # -----------------------
-# CONFIG
+# 1. Page Config & Identity (Created by Hasith)
 # -----------------------
-st.set_page_config(page_title="Alpha AI Ultimate", layout="wide")
+st.set_page_config(page_title="Alpha AI | Created by Hasith", layout="wide", page_icon="⚡")
+
+# --- GOOGLE VERIFICATION TAG ---
+st.markdown('<meta name="google-site-verification" content="W6jIGzCkkez2SpjygP6z0dJfinBNALmw2Hv-MkJvFB0" />', unsafe_allow_html=True)
 
 # -----------------------
-# SESSION
+# 2. Session State Init
 # -----------------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+if "messages" not in st.session_state: st.session_state.messages=[]
+if "logged_in" not in st.session_state: st.session_state.logged_in=False
+if "user_full_name" not in st.session_state: st.session_state.user_full_name=None
 
 # -----------------------
-# LOGIN
+# 3. Custom UI Styling
+# -----------------------
+st.markdown("""
+<style>
+    .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:20px; font-size: 22px; box-shadow: 0px 4px 15px rgba(0,0,0,0.3); }
+    .stChatMessage { border-radius: 15px; }
+    div.stButton > button { background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; height: 45px; font-weight: bold; border: 1px solid #FFD700; transition: 0.3s; }
+    div.stButton > button:hover { background-color: #FFD700; color: #000; }
+    .lab-box { border: 1px solid #333; padding: 20px; border-radius: 15px; background: #0e1117; margin-bottom: 20px; }
+</style>
+""", unsafe_allow_html=True)
+
+# -----------------------
+# 4. Login System
 # -----------------------
 if not st.session_state.logged_in:
-    st.title("Alpha AI Login")
+    st.markdown('<div class="premium-banner">ALPHA CORE SYSTEM ACCESS</div>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align:center; color:#FFD700; font-weight:bold;">Developed by Hasith</p>', unsafe_allow_html=True)
+    name = st.text_input("Operator Name")
     password = st.text_input("Master Key", type="password")
-
-    if st.button("Login"):
-        if password == st.secrets.get("APP_PASSWORD"):
+    if st.button("Initialize Alpha"):
+        if password == "Hasith12378":
+            st.session_state.user_full_name = name or "Hasith"
             st.session_state.logged_in = True
             st.rerun()
-        else:
-            st.error("Wrong Password")
-
+        else: st.error("Access Denied: Invalid Master Key")
     st.stop()
 
 # -----------------------
-# API KEYS
+# 5. API Setup
 # -----------------------
-groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY"))
+GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
+# Using the secret key you just generated
+POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY", "sk_Z0oEnm05szbphnbZ9ClRCukKV2HyDMH5")
+
+groq_client = Groq(api_key=GROQ_API_KEY)
+hf_client = InferenceClient(token=HF_TOKEN)
 
 # -----------------------
-# IMAGE GENERATION VIA HF API
+# 6. Helper Functions
 # -----------------------
-def generate_image(prompt):
-    models = [
-        "black-forest-labs/FLUX.1-schnell",
-        "runwayml/stable-diffusion-v1-5"
-    ]
-
-    headers = {
-        "Authorization": f"Bearer {HF_TOKEN}",
-        "Content-Type": "application/json"
-    }
-
-    for model in models:
-        url = f"https://api-inference.huggingface.co/models/{model}"
-
-        for attempt in range(5):
-            try:
-                response = requests.post(
-                    url,
-                    headers=headers,
-                    json={"inputs": prompt},
-                    timeout=300
-                )
-
-                if response.status_code == 200:
-                    content_type = response.headers.get("content-type", "")
-
-                    if "image" in content_type:
-                        return Image.open(io.BytesIO(response.content))
-
-                    try:
-                        data = response.json()
-                        st.warning(f"Model response: {data}")
-                    except Exception:
-                        st.warning("Model returned a response, but it was not an image.")
-                    break
-
-                elif response.status_code == 503:
-                    st.warning(f"{model} is busy. Retry {attempt + 1}/5")
-                    import time
-                    time.sleep(8)
-                    continue
-
-                else:
-                    try:
-                        err = response.json()
-                    except Exception:
-                        err = response.text
-                    st.warning(f"{model} error: {err}")
-                    break
-
-            except Exception as e:
-                st.warning(f"Request failed for {model}: {e}")
-                import time
-                time.sleep(5)
-
-    return None
-
-# -----------------------
-# VOICE
-# -----------------------
-async def speak(text):
+async def speak_alpha(text):
     try:
         comm = edge_tts.Communicate(text, "en-US-SteffanNeural")
         audio = b""
-
         async for chunk in comm.stream():
-            if chunk["type"] == "audio":
-                audio += chunk["data"]
-
+            if chunk["type"]=="audio": audio+=chunk["data"]
         if audio:
             b64 = base64.b64encode(audio).decode()
-            st.markdown(
-                f'<audio autoplay src="data:audio/mp3;base64,{b64}"></audio>',
-                unsafe_allow_html=True
-            )
-    except:
-        pass
+            st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
+    except: pass
+
+def generate_video_robust(prompt):
+    models = ["guoyww/AnimateDiff", "cerspense/zeroscope_v2_576w"]
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    for model_id in models:
+        try:
+            API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
+            response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
+            if response.status_code == 200: return response.content
+        except: continue
+    return None
 
 # -----------------------
-# UI
+# 7. Sidebar Control
 # -----------------------
-st.title("Alpha AI Ultimate")
+with st.sidebar:
+    st.image("https://img.icons8.com/fluent/100/000000/artificial-intelligence.png", width=70)
+    st.title("Alpha Control")
+    st.markdown(f"**Operator:** {st.session_state.user_full_name}")
+    st.divider()
+    mode = st.radio("Intelligence Level", ["Normal (Llama 3.3 Fast)", "Pro (GPT OSS 120B)"])
+    voice_on = st.checkbox("Voice Output", value=True)
+    st.divider()
+    if st.button("Log Out"):
+        st.session_state.logged_in = False
+        st.rerun()
+    st.write("---")
+    st.caption("Created by Hasith | Bandarawela Central College")
 
-# IMAGE SECTION
-st.subheader("Generate Image")
-prompt = st.text_input("Enter prompt")
-
-if st.button("Generate Image"):
-    if prompt:
-        with st.spinner("Generating image..."):
-            img = generate_image(prompt)
-
-            if img:
-                st.image(img)
-
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-
-                st.download_button(
-                    "Download Image",
-                    buf.getvalue(),
-                    file_name="alpha.png",
-                    mime="image/png"
-                )
-            else:
-                st.error("Image generation failed. Try again later.")
-    else:
-        st.warning("Please enter a prompt first.")
+st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Hasith</div>', unsafe_allow_html=True)
 
 # -----------------------
-# CHAT SECTION
+# 8. AI Multimodal Labs
 # -----------------------
-st.subheader("Chat")
+tab_img, tab_vid = st.tabs(["🖼 Image Generation Lab", "🎬 Cinema Lab (AI Video)"])
 
+with tab_img:
+    with st.container():
+        st.markdown('<div class="lab-box">', unsafe_allow_html=True)
+        col1, col2 = st.columns([3, 1])
+        img_p = col1.text_input("Describe image:", key="img_prompt")
+        
+        # Selection for Pollinations Models
+        img_model = st.selectbox("Intelligence Mode:", ["flux", "turbo", "zimage", "p-image"], key="img_model_select")
+        
+        if col2.button("Generate Photo"):
+            if img_p:
+                with st.spinner("Alpha is painting via Pollinations Engine... 🖌️"):
+                    try:
+                        encoded_p = urllib.parse.quote(img_p)
+                        seed = random.randint(1, 1000000)
+                        
+                        # UPDATED URL to gen.pollinations.ai
+                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
+                        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
+                        
+                        response = requests.get(url, headers=headers, timeout=60)
+                        
+                        if response.status_code == 200:
+                            st.image(response.content, caption=f"Created for {st.session_state.user_full_name}", use_container_width=True)
+                            st.download_button("Download Image 📥", response.content, f"alpha_{seed}.png", "image/png")
+                        else:
+                            st.error(f"Generation Failed: {response.status_code}")
+                            
+                    except Exception as e: st.error(f"Error: {e}")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+with tab_vid:
+    with st.container():
+        st.markdown('<div class="lab-box">', unsafe_allow_html=True)
+        col1, col2 = st.columns([3, 1])
+        vid_p = col1.text_input("Describe video scene:", key="vid_prompt")
+        if col2.button("Generate Video"):
+            if vid_p:
+                with st.spinner("Alpha is directing... 🎬"):
+                    vid_data = generate_video_robust(vid_p)
+                    if vid_data:
+                        st.video(vid_data)
+                        st.download_button("Download Video 📥", vid_data, "alpha_video.mp4")
+                    else:
+                        st.error("Cinema Lab is currently busy.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# -----------------------
+# 9. Hybrid Intelligence Chat
+# -----------------------
+st.write("### 💬 Heartfelt Conversation")
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-user_input = st.chat_input("Ask something...")
+user_input = st.chat_input("State your command, Master...")
 
 if user_input:
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
-
+    st.session_state.messages.append({"role":"user","content":user_input})
+    with st.chat_message("user"): st.markdown(user_input)
     with st.chat_message("assistant"):
-        placeholder = st.empty()
+        with st.spinner("Alpha is thinking..."):
+            res_placeholder = st.empty()
+            selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "llama3-70b-8192" 
+            sys_msg = f"You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly."
+            try:
+                stream = groq_client.chat.completions.create(
+                    model=selected_model,
+                    messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
+                    temperature=0.7,
+                    stream=True
+                )
+                full_res = ""
+                for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        full_res += chunk.choices[0].delta.content
+                        res_placeholder.markdown(full_res + "▌")
+                res_placeholder.markdown(full_res)
+                if voice_on: asyncio.run(speak_alpha(full_res))
+                st.session_state.messages.append({"role":"assistant","content":full_res})
+            except Exception as e: st.error(f"Brain Error: {e}")
 
-        try:
-            stream = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=st.session_state.messages[-10:],
-                temperature=0.5,
-                stream=True
-            )
-
-            full = ""
-
-            for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    full += chunk.choices[0].delta.content
-                    placeholder.write(full + "▌")
-
-            placeholder.write(full)
-
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": full
-            })
-
-            asyncio.run(speak(full))
-
-        except Exception as e:
-            st.error(f"Chat Error: {e}")
+st.markdown("---")
+st.caption("Alpha AI Project | Bandarawela Central College | Created by Hasith")                
