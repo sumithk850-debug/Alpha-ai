@@ -57,7 +57,6 @@ if not st.session_state.logged_in:
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
-# Using the secret key you just generated
 POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY", "sk_Z0oEnm05szbphnbZ9ClRCukKV2HyDMH5")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -77,16 +76,23 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-def generate_video_robust(prompt):
-    models = ["guoyww/AnimateDiff", "cerspense/zeroscope_v2_576w"]
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    for model_id in models:
-        try:
-            API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
-            response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
-            if response.status_code == 200: return response.content
-        except: continue
-    return None
+# 🔥 Pollinations Video Function
+def generate_video_pollinations(prompt):
+    try:
+        encoded_p = urllib.parse.quote(prompt)
+        seed = random.randint(1, 1000000)
+
+        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&nologo=true"
+        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
+
+        response = requests.get(url, headers=headers, timeout=120)
+
+        if response.status_code == 200:
+            return response.content
+        else:
+            return None
+    except:
+        return None
 
 # -----------------------
 # 7. Sidebar Control
@@ -112,13 +118,12 @@ st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Has
 # -----------------------
 tab_img, tab_vid = st.tabs(["🖼 Image Generation Lab", "🎬 Cinema Lab (AI Video)"])
 
+# -------- IMAGE --------
 with tab_img:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
         col1, col2 = st.columns([3, 1])
         img_p = col1.text_input("Describe image:", key="img_prompt")
-        
-        # Selection for Pollinations Models
         img_model = st.selectbox("Intelligence Mode:", ["flux", "turbo", "zimage", "p-image"], key="img_model_select")
         
         if col2.button("Generate Photo"):
@@ -127,8 +132,6 @@ with tab_img:
                     try:
                         encoded_p = urllib.parse.quote(img_p)
                         seed = random.randint(1, 1000000)
-                        
-                        # UPDATED URL to gen.pollinations.ai
                         url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
                         headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
                         
@@ -143,20 +146,24 @@ with tab_img:
                     except Exception as e: st.error(f"Error: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
+# -------- VIDEO (UPDATED) --------
 with tab_vid:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
         col1, col2 = st.columns([3, 1])
         vid_p = col1.text_input("Describe video scene:", key="vid_prompt")
+        
         if col2.button("Generate Video"):
             if vid_p:
-                with st.spinner("Alpha is directing... 🎬"):
-                    vid_data = generate_video_robust(vid_p)
+                with st.spinner("Alpha is directing via Pollinations... 🎬"):
+                    vid_data = generate_video_pollinations(vid_p)
+                    
                     if vid_data:
                         st.video(vid_data)
                         st.download_button("Download Video 📥", vid_data, "alpha_video.mp4")
                     else:
-                        st.error("Cinema Lab is currently busy.")
+                        st.error("Cinema Lab is currently busy or unsupported.")
+                        
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------
@@ -175,7 +182,7 @@ if user_input:
         with st.spinner("Alpha is thinking..."):
             res_placeholder = st.empty()
             selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "llama3-70b-8192" 
-            sys_msg = f"You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly."
+            sys_msg = "You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly."
             try:
                 stream = groq_client.chat.completions.create(
                     model=selected_model,
@@ -194,4 +201,4 @@ if user_input:
             except Exception as e: st.error(f"Brain Error: {e}")
 
 st.markdown("---")
-st.caption("Alpha AI Project | Bandarawela Central College | Created by Hasith")                
+st.caption("Alpha AI Project | Bandarawela Central College | Created by Hasith")
