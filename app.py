@@ -57,6 +57,7 @@ if not st.session_state.logged_in:
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
+# Using the key you provided in the code
 POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY", "sk_Z0oEnm05szbphnbZ9ClRCukKV2HyDMH5")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -76,24 +77,27 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-# 🔥 Updated Pollinations Video Function with wen2.2 model
+# 🔥 Corrected Video Function based on OpenAPI Document
 def generate_video_pollinations(prompt):
     try:
         encoded_p = urllib.parse.quote(prompt)
         seed = random.randint(1, 1000000)
         
-        # Using wen2.2 model as requested
-        url = f"https://gen.pollinations.ai/prompt/{encoded_p}?seed={seed}&model=wen2.2&nologo=true"
-        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
-
-        # Video generation takes time, so we increase timeout to 300 seconds
-        response = requests.get(url, headers=headers, timeout=300)
+        # නිවැරදි Endpoint එක: /video/{prompt}
+        # Documentation එකට අනුව ?key= එක භාවිතා කළ හැක
+        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&nologo=true&key={POLLINATIONS_KEY}"
+        
+        # වීඩියෝ එකක් සෑදීමට වැඩි කාලයක් යන බැවින් timeout එක විනාඩි 5ක් (300s) කළා
+        response = requests.get(url, timeout=300)
 
         if response.status_code == 200:
             return response.content
         else:
+            # Error එකක් ආවොත් මොකක්ද කියලා බලාගන්න print එකක් දැම්මා
+            st.error(f"API Error: {response.status_code} - {response.text}")
             return None
     except Exception as e:
+        st.error(f"System Error: {e}")
         return None
 
 # -----------------------
@@ -130,14 +134,14 @@ with tab_img:
         
         if col2.button("Generate Photo"):
             if img_p:
-                with st.spinner("Alpha is painting via Pollinations Engine... 🖌️"):
+                with st.spinner("Alpha is painting... 🖌️"):
                     try:
                         encoded_p = urllib.parse.quote(img_p)
                         seed = random.randint(1, 1000000)
-                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
-                        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
+                        # Image endpoint: /image/{prompt}
+                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true&key={POLLINATIONS_KEY}"
                         
-                        response = requests.get(url, headers=headers, timeout=60)
+                        response = requests.get(url, timeout=60)
                         
                         if response.status_code == 200:
                             st.image(response.content, caption=f"Created for {st.session_state.user_full_name}", use_container_width=True)
@@ -148,7 +152,7 @@ with tab_img:
                     except Exception as e: st.error(f"Error: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- VIDEO (USING WEN2.2) --------
+# -------- VIDEO (RE-FIXED) --------
 with tab_vid:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
@@ -157,14 +161,15 @@ with tab_vid:
         
         if col2.button("Generate Video"):
             if vid_p:
-                with st.spinner("Alpha is directing via Wen2.2 Engine... 🎬 (May take a few minutes)"):
+                # ඔබ එවපු documentation එකට අනුව /video/{prompt} භාවිතා කර ඇත
+                with st.spinner("Alpha is directing via Pollinations Cinema Engine... 🎬"):
                     vid_data = generate_video_pollinations(vid_p)
                     
                     if vid_data:
                         st.video(vid_data)
-                        st.download_button("Download Video 📥", vid_data, "alpha_video_wen.mp4")
+                        st.download_button("Download Video 📥", vid_data, "alpha_video.mp4")
                     else:
-                        st.error("Cinema Lab (Wen2.2) is currently busy or the prompt is too complex.")
+                        st.error("Cinema Lab is currently busy. Please check your API key balance or try again later.")
                         
         st.markdown('</div>', unsafe_allow_html=True)
 
