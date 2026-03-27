@@ -53,12 +53,12 @@ if not st.session_state.logged_in:
     st.stop()
 
 # -----------------------
-# 5. API Setup
+# 5. API Setup (Using Secrets for Security)
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
-# Using the key you provided in the code
-POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY", "sk_Z0oEnm05szbphnbZ9ClRCukKV2HyDMH5")
+# Make sure to use the 'sk_' key here for video generation
+POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 hf_client = InferenceClient(token=HF_TOKEN)
@@ -77,27 +77,37 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-# 🔥 Corrected Video Function based on OpenAPI Document
+# 🔥 Improved Video Function (OpenAI Compatible & Documentation compliant)
+# Model parameters updated based on provided screenshot
 def generate_video_pollinations(prompt):
     try:
         encoded_p = urllib.parse.quote(prompt)
         seed = random.randint(1, 1000000)
         
-        # නිවැරදි Endpoint එක: /video/{prompt}
-        # Documentation එකට අනුව ?key= එක භාවිතා කළ හැක
-        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&nologo=true&key={POLLINATIONS_KEY}"
+        # Pollinations /video endpoint
+        # 🔥 UPDATED MODEL: Using 'wan2.2' based on screenshot
+        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&model=wan2.2&nologo=true"
         
-        # වීඩියෝ එකක් සෑදීමට වැඩි කාලයක් යන බැවින් timeout එක විනාඩි 5ක් (300s) කළා
-        response = requests.get(url, timeout=300)
+        headers = {
+            "Authorization": f"Bearer {POLLINATIONS_KEY}"
+        }
+
+        # Long timeout for video generation (up to 5 mins)
+        response = requests.get(url, headers=headers, timeout=300)
 
         if response.status_code == 200:
             return response.content
+        elif response.status_code == 400:
+            st.error(f"❌ Bad Request (Invalid parameters or model). API Response: {response.text}")
+            return None
+        elif response.status_code == 402:
+            st.error("❌ Insufficient Pollen Balance. Please check your API account.")
+            return None
         else:
-            # Error එකක් ආවොත් මොකක්ද කියලා බලාගන්න print එකක් දැම්මා
-            st.error(f"API Error: {response.status_code} - {response.text}")
+            st.error(f"❌ API Error: {response.status_code}. Response: {response.text}")
             return None
     except Exception as e:
-        st.error(f"System Error: {e}")
+        st.error(f"⚠️ System Error: {e}")
         return None
 
 # -----------------------
@@ -138,21 +148,21 @@ with tab_img:
                     try:
                         encoded_p = urllib.parse.quote(img_p)
                         seed = random.randint(1, 1000000)
-                        # Image endpoint: /image/{prompt}
-                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true&key={POLLINATIONS_KEY}"
+                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
+                        # Image generation works fine even without headers for public pk keys
+                        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"} if POLLINATIONS_KEY else {}
                         
-                        response = requests.get(url, timeout=60)
+                        response = requests.get(url, headers=headers, timeout=60)
                         
                         if response.status_code == 200:
                             st.image(response.content, caption=f"Created for {st.session_state.user_full_name}", use_container_width=True)
                             st.download_button("Download Image 📥", response.content, f"alpha_{seed}.png", "image/png")
                         else:
                             st.error(f"Generation Failed: {response.status_code}")
-                            
                     except Exception as e: st.error(f"Error: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- VIDEO (RE-FIXED) --------
+# -------- VIDEO (RE-ENGINEERED WITH WAN2.2) --------
 with tab_vid:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
@@ -161,16 +171,13 @@ with tab_vid:
         
         if col2.button("Generate Video"):
             if vid_p:
-                # ඔබ එවපු documentation එකට අනුව /video/{prompt} භාවිතා කර ඇත
-                with st.spinner("Alpha is directing via Pollinations Cinema Engine... 🎬"):
+                with st.spinner("Alpha is directing your cinema via Wan 2.2 Engine... 🎬 (This takes time)"):
                     vid_data = generate_video_pollinations(vid_p)
-                    
                     if vid_data:
                         st.video(vid_data)
                         st.download_button("Download Video 📥", vid_data, "alpha_video.mp4")
                     else:
-                        st.error("Cinema Lab is currently busy. Please check your API key balance or try again later.")
-                        
+                        st.warning("⚠️ High Traffic or Complex Prompt. Check your Pollen balance.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------
@@ -189,7 +196,7 @@ if user_input:
         with st.spinner("Alpha is thinking..."):
             res_placeholder = st.empty()
             selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "llama3-70b-8192" 
-            sys_msg = "You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly."
+            sys_msg = "You are Alpha AI, a heartfelt assistant created by Hasith from Bandarawela Central College. Respond warmly and wisely."
             try:
                 stream = groq_client.chat.completions.create(
                     model=selected_model,
