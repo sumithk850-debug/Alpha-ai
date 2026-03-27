@@ -53,11 +53,10 @@ if not st.session_state.logged_in:
     st.stop()
 
 # -----------------------
-# 5. API Setup (Using Secrets for Security)
+# 5. API Setup (Using Secrets)
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
-# Make sure to use the 'sk_' key here for video generation
 POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -77,34 +76,29 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-# 🔥 Improved Video Function (OpenAI Compatible & Documentation compliant)
-# Model parameters updated based on provided screenshot
+# 🔥 Updated Video Function using LTX-2
 def generate_video_pollinations(prompt):
     try:
         encoded_p = urllib.parse.quote(prompt)
         seed = random.randint(1, 1000000)
         
-        # Pollinations /video endpoint
-        # 🔥 UPDATED MODEL: Using 'wan2.2' based on screenshot
-        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&model=wan2.2&nologo=true"
+        # 🔥 මොඩල් එක ltx-2 ලෙස වෙනස් කරන ලදි
+        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&model=ltx-2&nologo=true"
         
         headers = {
             "Authorization": f"Bearer {POLLINATIONS_KEY}"
         }
 
-        # Long timeout for video generation (up to 5 mins)
+        # වීඩියෝ එකක් හැදෙන්න වෙලාව යන නිසා timeout එක විනාඩි 5ක් කළා
         response = requests.get(url, headers=headers, timeout=300)
 
         if response.status_code == 200:
             return response.content
-        elif response.status_code == 400:
-            st.error(f"❌ Bad Request (Invalid parameters or model). API Response: {response.text}")
-            return None
         elif response.status_code == 402:
-            st.error("❌ Insufficient Pollen Balance. Please check your API account.")
+            st.error("❌ Insufficient Pollen Balance. LTX-2 සඳහාත් ඔබ සතුව ප්‍රමාණවත් Credits නැත.")
             return None
         else:
-            st.error(f"❌ API Error: {response.status_code}. Response: {response.text}")
+            st.error(f"❌ API Error: {response.status_code}")
             return None
     except Exception as e:
         st.error(f"⚠️ System Error: {e}")
@@ -132,7 +126,7 @@ st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Has
 # -----------------------
 # 8. AI Multimodal Labs
 # -----------------------
-tab_img, tab_vid = st.tabs(["🖼 Image Generation Lab", "🎬 Cinema Lab (AI Video)"])
+tab_img, tab_vid = st.tabs(["🖼 Image Generation Lab", "🎬 Cinema Lab (LTX-2 Video)"])
 
 # -------- IMAGE --------
 with tab_img:
@@ -149,11 +143,9 @@ with tab_img:
                         encoded_p = urllib.parse.quote(img_p)
                         seed = random.randint(1, 1000000)
                         url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
-                        # Image generation works fine even without headers for public pk keys
                         headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"} if POLLINATIONS_KEY else {}
                         
                         response = requests.get(url, headers=headers, timeout=60)
-                        
                         if response.status_code == 200:
                             st.image(response.content, caption=f"Created for {st.session_state.user_full_name}", use_container_width=True)
                             st.download_button("Download Image 📥", response.content, f"alpha_{seed}.png", "image/png")
@@ -162,7 +154,7 @@ with tab_img:
                     except Exception as e: st.error(f"Error: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- VIDEO (RE-ENGINEERED WITH WAN2.2) --------
+# -------- VIDEO (LTX-2) --------
 with tab_vid:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
@@ -171,13 +163,13 @@ with tab_vid:
         
         if col2.button("Generate Video"):
             if vid_p:
-                with st.spinner("Alpha is directing your cinema via Wan 2.2 Engine... 🎬 (This takes time)"):
+                with st.spinner("Alpha is directing your cinema via LTX-2 Engine... 🎬"):
                     vid_data = generate_video_pollinations(vid_p)
                     if vid_data:
                         st.video(vid_data)
                         st.download_button("Download Video 📥", vid_data, "alpha_video.mp4")
                     else:
-                        st.warning("⚠️ High Traffic or Complex Prompt. Check your Pollen balance.")
+                        st.warning("⚠️ Generation failed. Please check your Pollen balance.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------
@@ -196,7 +188,7 @@ if user_input:
         with st.spinner("Alpha is thinking..."):
             res_placeholder = st.empty()
             selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "llama3-70b-8192" 
-            sys_msg = "You are Alpha AI, a heartfelt assistant created by Hasith from Bandarawela Central College. Respond warmly and wisely."
+            sys_msg = "You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly."
             try:
                 stream = groq_client.chat.completions.create(
                     model=selected_model,
