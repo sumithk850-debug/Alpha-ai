@@ -53,7 +53,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # -----------------------
-# 5. API Setup (All from Secrets now)
+# 5. API Setup (Managed via Streamlit Secrets)
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
@@ -106,7 +106,7 @@ with st.sidebar:
     st.title("Alpha Control")
     st.markdown(f"Operator: {st.session_state.user_full_name}")
     st.divider()
-    mode = st.radio("Intelligence Level", ["Normal (Qwen 3 32B)", "Pro (GPT OSS 120B)", "Ultra (DeepSeek 671B)"])
+    mode = st.radio("Intelligence Level", ["Normal (Llama 3.3 70B)", "Pro (Llama 3.1 70B)", "Ultra (DeepSeek 671B)"])
     web_search_on = st.checkbox("Web Search (Real-time)", value=False)
     voice_on = st.checkbox("Voice Output", value=True)
     st.divider()
@@ -178,11 +178,16 @@ if user_input:
             res_placeholder = st.empty()
             search_context = web_search_tool(user_input) if web_search_on else ""
             
-            sys_msg = f"You are Alpha AI, a professional assistant created by Hasith. You are very friendly, helpful, and funny like a best friend from Sri Lanka. Use search context: {search_context}"
+            # --- IDENTITY SETTINGS (DO NOT CHANGE) ---
+            sys_msg = (
+                f"Your name is Alpha AI. You are a highly advanced and friendly AI assistant "
+                f"created and developed by Hasith from Sri Lanka. You are currently studying "
+                f"at Bandarawela Central College. You should be helpful, joking, and talk "
+                f"like a close friend. Search context: {search_context}"
+            )
             
             try:
                 if "Ultra" in mode:
-                    # Logic using OpenRouter Secret
                     response = requests.post(
                         url="https://openrouter.ai/api/v1/chat/completions",
                         headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
@@ -192,14 +197,20 @@ if user_input:
                             "temperature": 1.1
                         })
                     )
-                    full_res = response.json()['choices'][0]['message']['content']
-                    res_placeholder.markdown(full_res)
+                    data = response.json()
+                    if 'choices' in data:
+                        full_res = data['choices'][0]['message']['content']
+                        res_placeholder.markdown(full_res)
+                    else:
+                        error_msg = data.get('error', {}).get('message', 'Unknown API Error')
+                        st.error(f"API Error: {error_msg}")
+                        full_res = "Master, Alpha is facing a brain connectivity issue. Please check the API."
                 else:
                     if "Normal" in mode:
-                        selected_model = "qwen/qwen3-32b"
-                        temp, top_p, max_tokens = 0.6, 0.95, 4096
+                        selected_model = "llama-3.3-70b-versatile"
+                        temp, top_p, max_tokens = 0.7, 0.9, 4096
                     else:
-                        selected_model = "openai/gpt-oss-120b"
+                        selected_model = "llama-3.1-70b-versatile"
                         temp, top_p, max_tokens = 1.0, 1.0, 8192
                     
                     stream = groq_client.chat.completions.create(
