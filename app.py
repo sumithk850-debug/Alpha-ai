@@ -6,10 +6,11 @@ import edge_tts
 from PIL import Image
 import time
 import urllib.parse
-import random  
+import random
+from duckduckgo_search import DDGS 
 
 # -----------------------
-# 1. Page Config & Identity (Created by Hasith)
+# 1. Page Config & Identity
 # -----------------------
 st.set_page_config(page_title="Alpha AI | Created by Hasith", layout="wide", page_icon="⚡")
 
@@ -27,14 +28,13 @@ if "user_full_name" not in st.session_state: st.session_state.user_full_name=Non
 # 3. Custom UI Styling
 # -----------------------
 st.markdown("""
-<style>
-    .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:20px; font-size: 22px; box-shadow: 0px 4px 15px rgba(0,0,0,0.3); }
-    .stChatMessage { border-radius: 15px; }
-    div.stButton > button { background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; height: 45px; font-weight: bold; border: 1px solid #FFD700; transition: 0.3s; }
-    div.stButton > button:hover { background-color: #FFD700; color: #000; }
-    .lab-box { border: 1px solid #333; padding: 20px; border-radius: 15px; background: #0e1117; margin-bottom: 20px; }
-</style>
-""", unsafe_allow_html=True)
+<style>  
+    .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:20px; font-size: 22px; box-shadow: 0px 4px 15px rgba(0,0,0,0.3); }  
+    .stChatMessage { border-radius: 15px; }  
+    div.stButton > button { background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; height: 45px; font-weight: bold; border: 1px solid #FFD700; transition: 0.3s; }  
+    div.stButton > button:hover { background-color: #FFD700; color: #000; }  
+    .lab-box { border: 1px solid #333; padding: 20px; border-radius: 15px; background: #0e1117; margin-bottom: 20px; }  
+</style>  """, unsafe_allow_html=True)
 
 # -----------------------
 # 4. Login System
@@ -76,23 +76,26 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-# 🔥 Pollinations Video Function
-def generate_video_pollinations(prompt):
+def web_search_tool(query):
     try:
-        encoded_p = urllib.parse.quote(prompt)
-        seed = random.randint(1, 1000000)
+        with DDGS() as ddgs:
+            results = [r for r in ddgs.text(query, max_results=3)]
+            if results:
+                context = "\n".join([f"Source: {r['title']} - {r['body']}" for r in results])
+                return context
+    except: return "Unable to access live web data."
+    return ""
 
-        url = f"https://gen.pollinations.ai/video/{encoded_p}?seed={seed}&nologo=true"
-        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
-
-        response = requests.get(url, headers=headers, timeout=120)
-
-        if response.status_code == 200:
-            return response.content
-        else:
-            return None
-    except:
-        return None
+def generate_video_robust(prompt):
+    models = ["guoyww/AnimateDiff", "cerspense/zeroscope_v2_576w"]
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    for model_id in models:
+        try:
+            API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
+            response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
+            if response.status_code == 200: return response.content
+        except: continue
+    return None
 
 # -----------------------
 # 7. Sidebar Control
@@ -100,9 +103,11 @@ def generate_video_pollinations(prompt):
 with st.sidebar:
     st.image("https://img.icons8.com/fluent/100/000000/artificial-intelligence.png", width=70)
     st.title("Alpha Control")
-    st.markdown(f"**Operator:** {st.session_state.user_full_name}")
+    st.markdown(f"Operator: {st.session_state.user_full_name}")
     st.divider()
+    # PRESERVED: Both your preferred model names
     mode = st.radio("Intelligence Level", ["Normal (Llama 3.3 Fast)", "Pro (GPT OSS 120B)"])
+    web_search_on = st.checkbox("Web Search (Real-time)", value=False)
     voice_on = st.checkbox("Voice Output", value=True)
     st.divider()
     if st.button("Log Out"):
@@ -118,52 +123,41 @@ st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Has
 # -----------------------
 tab_img, tab_vid = st.tabs(["🖼 Image Generation Lab", "🎬 Cinema Lab (AI Video)"])
 
-# -------- IMAGE --------
 with tab_img:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
         col1, col2 = st.columns([3, 1])
         img_p = col1.text_input("Describe image:", key="img_prompt")
-        img_model = st.selectbox("Intelligence Mode:", ["flux", "turbo", "zimage", "p-image"], key="img_model_select")
-        
-        if col2.button("Generate Photo"):
-            if img_p:
-                with st.spinner("Alpha is painting via Pollinations Engine... 🖌️"):
-                    try:
-                        encoded_p = urllib.parse.quote(img_p)
-                        seed = random.randint(1, 1000000)
-                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
-                        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
-                        
-                        response = requests.get(url, headers=headers, timeout=60)
-                        
-                        if response.status_code == 200:
-                            st.image(response.content, caption=f"Created for {st.session_state.user_full_name}", use_container_width=True)
-                            st.download_button("Download Image 📥", response.content, f"alpha_{seed}.png", "image/png")
-                        else:
-                            st.error(f"Generation Failed: {response.status_code}")
-                            
-                    except Exception as e: st.error(f"Error: {e}")
+        img_model = st.selectbox("Intelligence Mode:", ["flux", "turbo", "zimage", "p-image"], key="img_model_select")  
+        if col2.button("Generate Photo"):  
+            if img_p:  
+                with st.spinner("Alpha is painting... 🖌️"):  
+                    try:  
+                        encoded_p = urllib.parse.quote(img_p)  
+                        seed = random.randint(1, 1000000)  
+                        url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"  
+                        headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}  
+                        response = requests.get(url, headers=headers, timeout=60)  
+                        if response.status_code == 200:  
+                            st.image(response.content, caption=f"Created for {st.session_state.user_full_name}", use_container_width=True)  
+                            st.download_button("Download Image 📥", response.content, f"alpha_{seed}.png", "image/png")  
+                        else: st.error(f"Generation Failed: {response.status_code}")  
+                    except Exception as e: st.error(f"Error: {e}")  
         st.markdown('</div>', unsafe_allow_html=True)
 
-# -------- VIDEO (UPDATED) --------
 with tab_vid:
     with st.container():
         st.markdown('<div class="lab-box">', unsafe_allow_html=True)
         col1, col2 = st.columns([3, 1])
         vid_p = col1.text_input("Describe video scene:", key="vid_prompt")
-        
         if col2.button("Generate Video"):
             if vid_p:
-                with st.spinner("Alpha is directing via Pollinations... 🎬"):
-                    vid_data = generate_video_pollinations(vid_p)
-                    
+                with st.spinner("Alpha is directing... 🎬"):
+                    vid_data = generate_video_robust(vid_p)
                     if vid_data:
                         st.video(vid_data)
                         st.download_button("Download Video 📥", vid_data, "alpha_video.mp4")
-                    else:
-                        st.error("Cinema Lab is currently busy or unsupported.")
-                        
+                    else: st.error("Cinema Lab is currently busy.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------
@@ -178,11 +172,24 @@ user_input = st.chat_input("State your command, Master...")
 if user_input:
     st.session_state.messages.append({"role":"user","content":user_input})
     with st.chat_message("user"): st.markdown(user_input)
+    
     with st.chat_message("assistant"):
         with st.spinner("Alpha is thinking..."):
             res_placeholder = st.empty()
-            selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "llama3-70b-8192" 
-            sys_msg = "You are Alpha AI, a heartfelt assistant created by Hasith. Respond warmly."
+            
+            # Web Search functionality
+            search_context = ""
+            if web_search_on:
+                search_context = web_search_tool(user_input)
+            
+            # UPDATED: Points exactly to the model ID from your Groq screenshot
+            if "Normal" in mode:
+                selected_model = "llama-3.3-70b-versatile"
+            else:
+                selected_model = "gpt-oss-120b"
+            
+            sys_msg = f"You are Alpha AI, created by Hasith. Use the search data to provide accurate real-time answers. Search Context: {search_context}"
+            
             try:
                 stream = groq_client.chat.completions.create(
                     model=selected_model,
@@ -198,7 +205,8 @@ if user_input:
                 res_placeholder.markdown(full_res)
                 if voice_on: asyncio.run(speak_alpha(full_res))
                 st.session_state.messages.append({"role":"assistant","content":full_res})
-            except Exception as e: st.error(f"Brain Error: {e}")
+            except Exception as e:
+                st.error(f"Brain Sync Error: {e}")
 
 st.markdown("---")
 st.caption("Alpha AI Project | Bandarawela Central College | Created by Hasith")
