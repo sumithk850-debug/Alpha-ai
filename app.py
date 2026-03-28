@@ -1,7 +1,7 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
 from groq import Groq
-import requests, base64, asyncio, io
+import requests, base64, asyncio, io, json
 import edge_tts
 from PIL import Image
 import time
@@ -53,11 +53,12 @@ if not st.session_state.logged_in:
     st.stop()
 
 # -----------------------
-# 5. API Setup
+# 5. API Setup (All from Secrets now)
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
 POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY", "sk_Z0oEnm05szbphnbZ9ClRCukKV2HyDMH5")
+OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY")
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 hf_client = InferenceClient(token=HF_TOKEN)
@@ -105,7 +106,7 @@ with st.sidebar:
     st.title("Alpha Control")
     st.markdown(f"Operator: {st.session_state.user_full_name}")
     st.divider()
-    mode = st.radio("Intelligence Level", ["Normal (Qwen 3 32B)", "Pro (GPT OSS 120B)"])
+    mode = st.radio("Intelligence Level", ["Normal (Qwen 3 32B)", "Pro (GPT OSS 120B)", "Ultra (DeepSeek 671B)"])
     web_search_on = st.checkbox("Web Search (Real-time)", value=False)
     voice_on = st.checkbox("Voice Output", value=True)
     st.divider()
@@ -177,35 +178,45 @@ if user_input:
             res_placeholder = st.empty()
             search_context = web_search_tool(user_input) if web_search_on else ""
             
-            # --- UPDATED MODEL SELECTION WITH YOUR PROVIDED IDs ---
-            if "Normal" in mode:
-                selected_model = "qwen/qwen3-32b"
-                temp = 0.6
-                top_p = 0.95
-                max_tokens = 4096
-            else:
-                selected_model = "openai/gpt-oss-120b"
-                temp = 1.0
-                top_p = 1.0
-                max_tokens = 8192
-            
-            sys_msg = f"You are Alpha AI, a professional assistant created by Hasith. Use the provided search context: {search_context}"
+            sys_msg = f"You are Alpha AI, a professional assistant created by Hasith. You are very friendly, helpful, and funny like a best friend from Sri Lanka. Use search context: {search_context}"
             
             try:
-                stream = groq_client.chat.completions.create(
-                    model=selected_model,
-                    messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
-                    temperature=temp,
-                    top_p=top_p,
-                    max_tokens=max_tokens,
-                    stream=True
-                )
-                full_res = ""
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        full_res += chunk.choices[0].delta.content
-                        res_placeholder.markdown(full_res + "▌")
-                res_placeholder.markdown(full_res)
+                if "Ultra" in mode:
+                    # Logic using OpenRouter Secret
+                    response = requests.post(
+                        url="https://openrouter.ai/api/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+                        data=json.dumps({
+                            "model": "deepseek/deepseek-chat",
+                            "messages": [{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
+                            "temperature": 1.1
+                        })
+                    )
+                    full_res = response.json()['choices'][0]['message']['content']
+                    res_placeholder.markdown(full_res)
+                else:
+                    if "Normal" in mode:
+                        selected_model = "qwen/qwen3-32b"
+                        temp, top_p, max_tokens = 0.6, 0.95, 4096
+                    else:
+                        selected_model = "openai/gpt-oss-120b"
+                        temp, top_p, max_tokens = 1.0, 1.0, 8192
+                    
+                    stream = groq_client.chat.completions.create(
+                        model=selected_model,
+                        messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
+                        temperature=temp,
+                        top_p=top_p,
+                        max_tokens=max_tokens,
+                        stream=True
+                    )
+                    full_res = ""
+                    for chunk in stream:
+                        if chunk.choices[0].delta.content:
+                            full_res += chunk.choices[0].delta.content
+                            res_placeholder.markdown(full_res + "▌")
+                    res_placeholder.markdown(full_res)
+                
                 if voice_on: asyncio.run(speak_alpha(full_res))
                 st.session_state.messages.append({"role":"assistant","content":full_res})
             except Exception as e: st.error(f"Brain Error: {e}")
