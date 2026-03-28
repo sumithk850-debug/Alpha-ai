@@ -83,7 +83,7 @@ def web_search_tool(query):
             if results:
                 context = "\n".join([f"Source: {r['title']} - {r['body']}" for r in results])
                 return context
-    except: return "Unable to access live web data."
+    except: return ""
     return ""
 
 def generate_video_robust(prompt):
@@ -105,8 +105,7 @@ with st.sidebar:
     st.title("Alpha Control")
     st.markdown(f"Operator: {st.session_state.user_full_name}")
     st.divider()
-    # PRESERVED: Both your preferred model names
-    mode = st.radio("Intelligence Level", ["Normal (Llama 3.3 Fast)", "Pro (GPT OSS 120B)"])
+    mode = st.radio("Intelligence Level", ["Normal (Qwen 3 32B)", "Pro (GPT OSS 120B)"])
     web_search_on = st.checkbox("Web Search (Real-time)", value=False)
     voice_on = st.checkbox("Voice Output", value=True)
     st.divider()
@@ -176,25 +175,29 @@ if user_input:
     with st.chat_message("assistant"):
         with st.spinner("Alpha is thinking..."):
             res_placeholder = st.empty()
+            search_context = web_search_tool(user_input) if web_search_on else ""
             
-            # Web Search functionality
-            search_context = ""
-            if web_search_on:
-                search_context = web_search_tool(user_input)
-            
-            # UPDATED: Points exactly to the model ID from your Groq screenshot
+            # --- UPDATED MODEL SELECTION WITH YOUR PROVIDED IDs ---
             if "Normal" in mode:
-                selected_model = "llama-3.3-70b-versatile"
+                selected_model = "qwen/qwen3-32b"
+                temp = 0.6
+                top_p = 0.95
+                max_tokens = 4096
             else:
-                selected_model = "gpt-oss-120b"
+                selected_model = "openai/gpt-oss-120b"
+                temp = 1.0
+                top_p = 1.0
+                max_tokens = 8192
             
-            sys_msg = f"You are Alpha AI, created by Hasith. Use the search data to provide accurate real-time answers. Search Context: {search_context}"
+            sys_msg = f"You are Alpha AI, a professional assistant created by Hasith. Use the provided search context: {search_context}"
             
             try:
                 stream = groq_client.chat.completions.create(
                     model=selected_model,
                     messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
-                    temperature=0.7,
+                    temperature=temp,
+                    top_p=top_p,
+                    max_tokens=max_tokens,
                     stream=True
                 )
                 full_res = ""
@@ -205,8 +208,7 @@ if user_input:
                 res_placeholder.markdown(full_res)
                 if voice_on: asyncio.run(speak_alpha(full_res))
                 st.session_state.messages.append({"role":"assistant","content":full_res})
-            except Exception as e:
-                st.error(f"Brain Sync Error: {e}")
+            except Exception as e: st.error(f"Brain Error: {e}")
 
 st.markdown("---")
 st.caption("Alpha AI Project | Bandarawela Central College | Created by Hasith")
