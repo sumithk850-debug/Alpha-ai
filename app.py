@@ -17,7 +17,7 @@ st.set_page_config(page_title="Alpha AI | Created by Hasith", layout="wide", pag
 st.markdown('<meta name="google-site-verification" content="W6jIGzCkkez2SpjygP6z0dJfinBNALmw2Hv-MkJvFB0" />', unsafe_allow_html=True)
 
 # -----------------------
-# 2. Cookie Management (අවුරුද්දක් මතක තබා ගැනීමට)
+# 2. Cookie Management
 # -----------------------
 cookie_manager = stx.CookieManager()
 saved_user_email = cookie_manager.get(cookie="alpha_user_persistence")
@@ -26,7 +26,6 @@ if "messages" not in st.session_state: st.session_state.messages=[]
 if "logged_in" not in st.session_state: st.session_state.logged_in=False
 if "user_full_name" not in st.session_state: st.session_state.user_full_name=None
 
-# Auto-Login Logic
 if saved_user_email and not st.session_state.logged_in:
     st.session_state.logged_in = True
     st.session_state.user_full_name = saved_user_email
@@ -53,29 +52,25 @@ if not st.session_state.logged_in:
     with col2:
         user_email = st.text_input("Operator Email / Name")
         password = st.text_input("Master Key", type="password")
-        
         if st.button("Initialize Alpha"):
             if password == "Hasith12378":
                 st.session_state.user_full_name = user_email or "Hasith"
                 st.session_state.logged_in = True
-                
-                # Cookie එක අවුරුද්දකට සෙට් කිරීම
                 expire_date = datetime.datetime.now() + datetime.timedelta(days=365)
                 cookie_manager.set("alpha_user_persistence", user_email, expires_at=expire_date)
-                
                 st.success("Access Granted!")
                 time.sleep(1)
                 st.rerun()
-            else: 
-                st.error("Access Denied: Invalid Master Key")
+            else: st.error("Access Denied!")
     st.stop()
 
 # -----------------------
-# 5. API Setup
+# 5. API Setup (Managed via Secrets)
 # -----------------------
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
-POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY", "sk_Z0oEnm05szbphnbZ9ClRCukKV2HyDMH5")
+# මෙතන ඔබේ අලුත් API Key එක අනිවාර්යයෙන්ම තිබිය යුතුයි
+POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY") 
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 hf_client = InferenceClient(token=HF_TOKEN)
@@ -94,17 +89,6 @@ async def speak_alpha(text):
             st.markdown(f'<audio autoplay src="data:audio/mp3;base64,{b64}">', unsafe_allow_html=True)
     except: pass
 
-def generate_video_robust(prompt):
-    models = ["guoyww/AnimateDiff", "cerspense/zeroscope_v2_576w"]
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    for model_id in models:
-        try:
-            API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
-            response = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=60)
-            if response.status_code == 200: return response.content
-        except: continue
-    return None
-
 # -----------------------
 # 7. Sidebar
 # -----------------------
@@ -113,18 +97,17 @@ with st.sidebar:
     st.markdown(f"Operator: **{st.session_state.user_full_name}**")
     st.divider()
     st.metric(label="Active Alpha Operators", value="10+") 
-    mode = st.radio("Intelligence Level", ["Normal (Llama 3.3 70B)", "Pro (Llama 3.1 70B)"])
+    mode = st.radio("Intelligence Level", ["Normal", "Pro"])
     voice_on = st.checkbox("Voice Output", value=True)
     if st.button("Log Out"):
         cookie_manager.delete("alpha_user_persistence")
         st.session_state.logged_in = False
         st.rerun()
-    st.caption("Created by Hasith | Bandarawela Central College")
 
 st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Hasith</div>', unsafe_allow_html=True)
 
 # -----------------------
-# 8. Labs
+# 8. Labs (IMAGE LAB)
 # -----------------------
 tab_img, tab_vid = st.tabs(["🖼 Image Lab", "🎬 Cinema Lab"])
 
@@ -132,32 +115,26 @@ with tab_img:
     st.markdown('<div class="lab-box">', unsafe_allow_html=True)
     col1, col2 = st.columns([3, 1])
     img_p = col1.text_input("Describe image:", key="img_prompt")
-    img_model = st.selectbox("Style:", ["flux", "turbo", "zimage"], key="img_model_select")  
+    img_model = st.selectbox("Style:", ["flux", "turbo", "unity"], key="img_model_select")  
+    
     if col2.button("Generate Photo"):  
         if img_p:  
             with st.spinner("Alpha is painting..."):  
                 try:  
                     seed = random.randint(1, 1000000)  
                     encoded_p = urllib.parse.quote(img_p)
-                    # Pollinations API එකට headers අවශ්‍ය නැහැ
                     url = f"https://gen.pollinations.ai/image/{encoded_p}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"  
-                    response = requests.get(url, timeout=60)
+                    
+                    # --- POLLINATIONS නව නීතිවලට අනුව Authentication එක් කිරීම ---
+                    headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
+                    response = requests.get(url, headers=headers, timeout=60)
+                    
                     if response.status_code == 200:
                         st.image(response.content, use_container_width=True)
                         st.download_button("Download 📥", response.content, f"alpha_{seed}.png", "image/png")
-                    else: st.error("Pollinations API Error")
-                except Exception as e: st.error(f"Error: {e}")  
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with tab_vid:
-    st.markdown('<div class="lab-box">', unsafe_allow_html=True)
-    vid_p = st.text_input("Describe video scene:", key="vid_prompt")
-    if st.button("Generate Video"):
-        if vid_p:
-            with st.spinner("Directing..."):
-                vid_data = generate_video_robust(vid_p)
-                if vid_data: st.video(vid_data)
-                else: st.error("Video core busy.")
+                    else: 
+                        st.error(f"Error {response.status_code}: Please check your Pollinations API Key.")
+                except Exception as e: st.error(f"Network Error: {e}")  
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------
@@ -175,15 +152,10 @@ if user_input:
     
     with st.chat_message("assistant"):
         res_placeholder = st.empty()
-        sys_msg = f"Your name is Alpha AI. Created by Hasith from Bandarawela Central College."
-        
+        sys_msg = f"Your name is Alpha AI. Created by Hasith."
         try:
-            selected_model = "llama-3.3-70b-versatile" if "Normal" in mode else "llama-3.1-70b-versatile"
-            stream = groq_client.chat.completions.create(
-                model=selected_model,
-                messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
-                stream=True
-            )
+            model_id = "llama-3.3-70b-versatile" if mode == "Normal" else "llama-3.1-70b-versatile"
+            stream = groq_client.chat.completions.create(model=model_id, messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:], stream=True)
             full_res = ""
             for chunk in stream:
                 if chunk.choices[0].delta.content:
@@ -192,7 +164,7 @@ if user_input:
             res_placeholder.markdown(full_res)
             if voice_on: asyncio.run(speak_alpha(full_res))
             st.session_state.messages.append({"role":"assistant","content":full_res})
-        except Exception as e: st.error(f"Error: {e}")
+        except: st.error("Brain Connectivity Issue.")
 
 st.markdown("---")
 st.caption("Alpha AI Project | Created by Hasith")
