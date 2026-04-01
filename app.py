@@ -1,67 +1,22 @@
 import streamlit as st
+from supabase import create_client, Client
+import extra_streamlit_components as stx
 from huggingface_hub import InferenceClient
 from groq import Groq
 import requests, base64, asyncio, io, json, datetime
 import edge_tts
-from PIL import Image
-import time
-import urllib.parse
-import random
-from duckduckgo_search import DDGS 
-import extra_streamlit_components as stx
+import random, urllib.parse
+from duckduckgo_search import DDGS
 
 # -----------------------
-# 1. Page Config & Identity
+# 1. Supabase & API Setup
 # -----------------------
-st.set_page_config(page_title="Alpha AI | Created by Hasith", layout="wide", page_icon="⚡")
-st.markdown('<meta name="google-site-verification" content="W6jIGzCkkez2SpjygP6z0dJfinBNALmw2Hv-MkJvFB0" />', unsafe_allow_html=True)
+# Secrets වලින් දත්ත ලබා ගැනීම
+URL = st.secrets["SUPABASE_URL"]
+KEY = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(URL, KEY)
 
-# -----------------------
-# 2. Cookie Management (Persistent Login)
-# -----------------------
-cookie_manager = stx.CookieManager()
-saved_user = cookie_manager.get(cookie="alpha_user_persistence")
-
-if "messages" not in st.session_state: st.session_state.messages=[]
-if "logged_in" not in st.session_state: st.session_state.logged_in=False
-if "user_full_name" not in st.session_state: st.session_state.user_full_name=None
-
-if saved_user and not st.session_state.logged_in:
-    st.session_state.logged_in = True
-    st.session_state.user_full_name = saved_user
-
-# -----------------------
-# 3. Custom UI Styling
-# -----------------------
-st.markdown("""
-<style>  
-    .premium-banner { width:100%; padding:15px; background: linear-gradient(90deg, #FFD700, #FF8C00); color:#000; border-radius:15px; text-align:center; font-weight:bold; margin-bottom:20px; font-size: 22px; box-shadow: 0px 4px 15px rgba(0,0,0,0.3); }  
-    .lab-box { border: 1px solid #333; padding: 20px; border-radius: 15px; background: #0e1117; margin-bottom: 20px; }  
-    div.stButton > button { background-color: #1e1e1e; color: #FFD700; border-radius: 12px; width: 100%; height: 45px; font-weight: bold; border: 1px solid #FFD700; transition: 0.3s; }  
-    div.stButton > button:hover { background-color: #FFD700; color: #000; }  
-</style>  """, unsafe_allow_html=True)
-
-# -----------------------
-# 4. Login System
-# -----------------------
-if not st.session_state.logged_in:
-    st.markdown('<div class="premium-banner">ALPHA CORE SYSTEM ACCESS</div>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align:center; color:#FFD700; font-weight:bold;">Developed by Hasith</p>', unsafe_allow_html=True)
-    name = st.text_input("Operator Name")
-    password = st.text_input("Master Key", type="password")
-    if st.button("Initialize Alpha"):
-        if password == "Hasith12378":
-            st.session_state.user_full_name = name or "Hasith"
-            st.session_state.logged_in = True
-            expire_date = datetime.datetime.now() + datetime.timedelta(days=365)
-            cookie_manager.set("alpha_user_persistence", name or "Hasith", expires_at=expire_date)
-            st.rerun()
-        else: st.error("Access Denied!")
-    st.stop()
-
-# -----------------------
-# 5. API Setup
-# -----------------------
+# API Keys (Secrets වලින් ලබාගත යුතුය)
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
 HF_TOKEN = st.secrets.get("HF_TOKEN")
 POLLINATIONS_KEY = st.secrets.get("POLLINATIONS_API_KEY")
@@ -70,9 +25,33 @@ OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 hf_client = InferenceClient(token=HF_TOKEN)
 
+st.set_page_config(page_title="Alpha AI | Pro Business Edition", layout="wide", page_icon="⚡")
+
 # -----------------------
-# 6. Helper Functions
+# 2. Cookie & Session Management
 # -----------------------
+cookie_manager = stx.CookieManager()
+
+if "logged_in" not in st.session_state: st.session_state.logged_in = False
+if "user_data" not in st.session_state: st.session_state.user_data = None
+if "messages" not in st.session_state: st.session_state.messages = []
+
+# Cookie පරීක්ෂා කර ස්වයංක්‍රීයව ලොගින් වීම (Auto-Login)
+saved_token = cookie_manager.get(cookie="alpha_master_token")
+if saved_token and not st.session_state.logged_in:
+    try:
+        res = supabase.table("profiles").select("*").eq("master_key", saved_token).execute()
+        if res.data:
+            st.session_state.user_data = res.data[0]
+            st.session_state.logged_in = True
+    except: pass
+
+# -----------------------
+# 3. Helper Functions
+# -----------------------
+def generate_master_key():
+    return f"ALPHA-{random.randint(1000, 9999)}-{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}"
+
 async def speak_alpha(text):
     try:
         comm = edge_tts.Communicate(text, "en-US-SteffanNeural")
@@ -94,84 +73,116 @@ def web_search_tool(query):
     return ""
 
 # -----------------------
-# 7. Sidebar Control
+# 4. Master Key Auth UI
 # -----------------------
+if not st.session_state.logged_in:
+    st.markdown('<h1 style="text-align:center; color:#FFD700;">⚡ ALPHA AI CORE ACCESS</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align:center; color:#888;">Created by Hasith | Bandarawela Central College</p>', unsafe_allow_html=True)
+    
+    auth_tab1, auth_tab2 = st.tabs(["🔑 Sign In", "📝 Create Account"])
+
+    with auth_tab2: # Registration
+        st.subheader("Register for Alpha AI")
+        reg_name = st.text_input("Full Name", placeholder="Enter your name")
+        reg_email = st.text_input("Email Address", placeholder="Enter your email")
+        if st.button("Register & Get Master Key"):
+            if reg_name and reg_email:
+                new_key = generate_master_key()
+                try:
+                    # Database එකට දත්ත ඇතුළත් කිරීම
+                    data = {"full_name": reg_name, "email": reg_email, "master_key": new_key}
+                    supabase.table("profiles").insert(data).execute()
+                    st.success(f"Registration Successful! Welcome {reg_name}.")
+                    st.code(f"YOUR MASTER KEY: {new_key}", language="text")
+                    st.warning("⚠️ Copy and save this Key. You need it to login next time!")
+                except: st.error("Registration failed. Email might already exist.")
+            else: st.info("Please fill all details.")
+
+    with auth_tab1: # Login
+        st.subheader("Login with Master Key")
+        log_email = st.text_input("Email", key="login_email")
+        log_key = st.text_input("Master Key", type="password", key="login_key")
+        if st.button("Access Alpha System"):
+            res = supabase.table("profiles").select("*").eq("email", log_email).eq("master_key", log_key).execute()
+            if res.data:
+                st.session_state.user_data = res.data[0]
+                st.session_state.logged_in = True
+                # Cookie එක දින 30කට සේව් කිරීම
+                cookie_manager.set("alpha_master_token", log_key, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                st.rerun()
+            else: st.error("Invalid Email or Master Key.")
+    st.stop()
+
+# -----------------------
+# 5. Main UI & Sidebar
+# -----------------------
+user_info = st.session_state.user_data
+status_label = "🌟 PRO" if user_info.get("is_pro") else "🆓 FREE"
+
+st.markdown(f"""
+<div style="background: linear-gradient(90deg, #FFD700, #FF8C00); padding:15px; border-radius:15px; text-align:center; color:black; font-weight:bold; margin-bottom:20px;">
+    ⚡ ALPHA AI ULTIMATE | User: {user_info['full_name']} | Status: {status_label}
+</div>
+""", unsafe_allow_html=True)
+
 with st.sidebar:
     st.image("https://img.icons8.com/fluent/100/000000/artificial-intelligence.png", width=70)
-    st.title("Alpha Control")
-    st.markdown(f"Operator: {st.session_state.user_full_name}")
-    st.divider()
-    st.metric(label="Active Alpha Operators", value="10+")
+    st.title("Alpha Settings")
     mode = st.radio("Intelligence Level", ["Normal (Llama 3.3)", "Pro (GPT OSS 120B)", "Ultra (DeepSeek)"])
-    web_search_on = st.checkbox("Web Search", value=False)
+    web_search_on = st.checkbox("Live Web Search", value=False)
     voice_on = st.checkbox("Voice Output", value=True)
+    
     if st.button("Log Out"):
-        cookie_manager.delete("alpha_user_persistence")
+        cookie_manager.delete("alpha_master_token")
         st.session_state.logged_in = False
         st.rerun()
 
-st.markdown(f'<div class="premium-banner">⚡ ALPHA AI ULTIMATE | Created by Hasith</div>', unsafe_allow_html=True)
-
 # -----------------------
-# 8. AI Multimodal Labs
+# 6. Multimedia Labs (Images & Cinema)
 # -----------------------
 tab_img, tab_vid = st.tabs(["🖼 Image Lab", "🎬 Cinema Lab"])
 
 with tab_img:
-    st.markdown('<div class="lab-box">', unsafe_allow_html=True)
     col1, col2 = st.columns([3, 1])
-    img_p = col1.text_input("Describe image:", key="img_prompt")
-    img_model = st.selectbox("Mode:", ["flux", "turbo", "zimage", "p-image"], key="img_model_select")  
-    if col2.button("Generate Photo"):  
-        if img_p:  
-            with st.spinner("Alpha is painting..."):  
-                try:  
-                    seed = random.randint(1, 1000000)  
-                    url = f"https://gen.pollinations.ai/image/{urllib.parse.quote(img_p)}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"  
-                    headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
-                    response = requests.get(url, headers=headers, timeout=60)  
-                    if response.status_code == 200:  
-                        st.image(response.content, use_container_width=True)  
-                except: st.error("Generation Error.")  
-    st.markdown('</div>', unsafe_allow_html=True)
+    img_p = col1.text_input("Describe your vision:", key="img_prompt")
+    img_model = st.selectbox("Model:", ["flux", "turbo", "zimage", "p-image"])
+    if col2.button("Generate"):
+        if img_p:
+            with st.spinner("Generating..."):
+                seed = random.randint(1, 1000000)
+                url = f"https://gen.pollinations.ai/image/{urllib.parse.quote(img_p)}?width=1024&height=1024&seed={seed}&model={img_model}&nologo=true"
+                st.image(url, use_container_width=True)
 
 # -----------------------
-# 9. Hybrid Intelligence Chat
+# 7. Hybrid Chat System
 # -----------------------
-st.write("### 💬 Heartfelt Conversation")
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
 user_input = st.chat_input("State your command, Master...")
 
 if user_input:
-    st.session_state.messages.append({"role":"user","content":user_input})
+    st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"): st.markdown(user_input)
     
     with st.chat_message("assistant"):
         res_placeholder = st.empty()
-        
-        # Web Search logic with high priority
         search_results = web_search_tool(user_input) if web_search_on else ""
         
-        # අද දිනය සහ සර්ච් දත්ත වලට මුල් තැන දෙන System Prompt එක
         sys_msg = (
             f"Your name is Alpha AI. Created by Hasith from Bandarawela Central College. "
             f"Today's Date: {datetime.date.today()}. "
-            f"CRITICAL: If search results are provided below, use them as your primary source for current events, "
-            f"ignoring any older training data. "
-            f"Search Context: {search_results}"
+            f"User Name: {user_info['full_name']}. "
+            f"If search results are provided, use them primarily: {search_results}"
         )
         
         try:
             if "Pro" in mode:
-                # GPT OSS 120B with reasoning_effort
+                # GPT OSS 120B Model
                 stream = groq_client.chat.completions.create(
                     model="openai/gpt-oss-120b",
                     messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
-                    temperature=1.0,
-                    max_completion_tokens=8192,
-                    reasoning_effort="medium",
+                    temperature=0.7,
                     stream=True
                 )
             elif "Ultra" in mode:
@@ -201,8 +212,8 @@ if user_input:
                 res_placeholder.markdown(full_res)
                 
             if voice_on: asyncio.run(speak_alpha(full_res))
-            st.session_state.messages.append({"role":"assistant","content":full_res})
-        except Exception as e: st.error(f"Brain Error: {e}")
+            st.session_state.messages.append({"role": "assistant", "content": full_res})
+        except Exception as e: st.error(f"Error: {e}")
 
-st.markdown("---")
-st.caption("Alpha AI Project | Created by Hasith")
+st.divider()
+st.caption("Alpha AI Ultimate Edition | Powering the Future | Created by Hasith")
