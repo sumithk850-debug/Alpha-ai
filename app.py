@@ -102,7 +102,6 @@ with st.sidebar:
     st.markdown(f"Operator: {st.session_state.user_full_name}")
     st.divider()
     st.metric(label="Active Alpha Operators", value="10+")
-    # Pro Mode එක දැන් GPT OSS 120B සමඟ
     mode = st.radio("Intelligence Level", ["Normal (Llama 3.3)", "Pro (GPT OSS 120B)", "Ultra (DeepSeek)"])
     web_search_on = st.checkbox("Web Search", value=False)
     voice_on = st.checkbox("Voice Output", value=True)
@@ -151,12 +150,22 @@ if user_input:
     
     with st.chat_message("assistant"):
         res_placeholder = st.empty()
-        search_context = web_search_tool(user_input) if web_search_on else ""
-        sys_msg = f"Your name is Alpha AI. Created by Hasith from Bandarawela Central College. Search: {search_context}"
+        
+        # Web Search logic with high priority
+        search_results = web_search_tool(user_input) if web_search_on else ""
+        
+        # අද දිනය සහ සර්ච් දත්ත වලට මුල් තැන දෙන System Prompt එක
+        sys_msg = (
+            f"Your name is Alpha AI. Created by Hasith from Bandarawela Central College. "
+            f"Today's Date: {datetime.date.today()}. "
+            f"CRITICAL: If search results are provided below, use them as your primary source for current events, "
+            f"ignoring any older training data. "
+            f"Search Context: {search_results}"
+        )
         
         try:
             if "Pro" in mode:
-                # ඔබ ලබාදුන් අලුත්ම GPT OSS 120B Model එක මෙතන තියෙනවා
+                # GPT OSS 120B with reasoning_effort
                 stream = groq_client.chat.completions.create(
                     model="openai/gpt-oss-120b",
                     messages=[{"role": "system", "content": sys_msg}] + st.session_state.messages[-10:],
@@ -166,7 +175,6 @@ if user_input:
                     stream=True
                 )
             elif "Ultra" in mode:
-                # OpenRouter DeepSeek logic
                 response = requests.post(
                     url="https://openrouter.ai/api/v1/chat/completions",
                     headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
