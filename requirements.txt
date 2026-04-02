@@ -6,3 +6,4 @@ Pillow
 edge-tts
 duckduckgo_search
 extra-streamlit_components
+supabase
